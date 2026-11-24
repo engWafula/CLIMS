@@ -737,6 +737,83 @@
         }
       }
     },
+    "/api/v1/users/district": {
+      "get": {
+        "tags": ["Users"],
+        "operationId": "listDistrictUsers",
+        "summary": "List the field users in your district",
+        "description": "The VHT, hotspot manager and delivery agent accounts in the caller's district, newest first. The caller's district is their district store's, or else their subcounty's; a caller with neither gets 403. Requires all permissions: users:district_read.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistrictUsersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-required-permissions": ["users:district_read"]
+      },
+      "post": {
+        "tags": ["Users"],
+        "operationId": "createDistrictUser",
+        "summary": "Create a field user in your district",
+        "description": "For district focal persons: creates a VHT, hotspot manager or delivery agent account in the caller's own district, and no other role. A VHT needs subcounty_id, a subcounty in the district. A hotspot manager needs hot_spot_id, an active hotspot in the district; their subcounty is the hotspot's. A delivery agent is assigned the district store. Other assignment fields are ignored. Identifiers must be unused, as for createUser (409). A caller with no district gets 403. Requires all permissions: users:district_create.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-required-permissions": ["users:district_create"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDistrictUserRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/{id}": {
       "get": {
         "tags": ["Users"],
@@ -6549,6 +6626,78 @@
                 "$ref": "#/components/schemas/User"
               }
             }
+          }
+        }
+      },
+      "DistrictUsersResponse": {
+        "type": "object",
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "required": ["users"],
+            "properties": {
+              "users": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateDistrictUserRequest": {
+        "type": "object",
+        "required": ["username", "email", "password", "role"],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 50
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 72
+          },
+          "first_name": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "last_name": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "phone_number": {
+            "type": "string",
+            "maxLength": 15
+          },
+          "role": {
+            "type": "string",
+            "enum": ["vht", "hotspot manager", "delivery agent"]
+          },
+          "subcounty_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for a VHT: a subcounty in your district."
+          },
+          "hot_spot_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for a hotspot manager: an active hotspot in your district."
           }
         }
       },

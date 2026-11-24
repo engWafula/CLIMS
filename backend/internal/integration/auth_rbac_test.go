@@ -416,6 +416,7 @@ func TestAuthRBACIntegration(t *testing.T) {
 	}
 
 	testDistrictStockouts(t, pool, request, login, adminToken, condomID)
+	testDistrictAccounts(t, pool, request, login, adminToken)
 	testHotSpotActivation(t, pool, request, login, adminToken, destinationID)
 	testNotifications(t, pool, request, login, adminToken, destinationID)
 	testAudit(t, pool, repo, service, auditor, adminToken)
@@ -504,14 +505,16 @@ func TestAuthRBACIntegration(t *testing.T) {
 	}
 	// Migrations 18 and 23 deliberately grant catalogue:manage to moh, nms and jms, migrations 31 and
 	// 38 give the warehouse and DCFP roles their order, inventory and (DCFP) report defaults, and
-	// migration 35 gives delivery agents orders:deliver; every other non-admin grant is the custom one.
+	// migration 35 gives delivery agents orders:deliver, and migration 39 gives the DCFP role its district
+	// user permissions; every other non-admin grant is the custom one.
 	var catalogueManagers string
 	if err = upgrade.QueryRow(ctx, `SELECT (SELECT count(*) FROM users),
 		(SELECT count(*) FROM role_permission rp JOIN roles r ON r.id = rp.role_id
 			JOIN permissions p ON p.id = rp.permission_id WHERE r.name<>'admin' AND p.name<>'catalogue:manage'
 			AND NOT (r.name IN ('nms', 'jms', 'dfcp') AND (p.name LIKE 'orders:%' OR p.name LIKE 'inventory:%'))
 			AND NOT (r.name = 'dfcp' AND p.name = 'reports:read')
-			AND NOT (r.name = 'delivery agent' AND p.name = 'orders:deliver')),
+			AND NOT (r.name = 'delivery agent' AND p.name = 'orders:deliver')
+			AND NOT (r.name = 'dfcp' AND p.name IN ('users:district_read', 'users:district_create'))),
 		(SELECT string_agg(r.name, ',' ORDER BY r.name) FROM role_permission rp JOIN roles r ON r.id = rp.role_id
 			JOIN permissions p ON p.id = rp.permission_id WHERE r.name<>'admin' AND p.name='catalogue:manage')`).Scan(
 		&userCount, &roleCount, &catalogueManagers); err != nil {

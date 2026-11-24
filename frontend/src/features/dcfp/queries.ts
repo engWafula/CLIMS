@@ -20,6 +20,7 @@ import {
   type WarehouseOrderInput,
   type HotspotDeliveryInput,
 } from './api';
+import { createFieldUser, listFieldUsers, type NewFieldUserInput } from './fieldUsers';
 
 /*
  * Every key starts with `dcfp`. Placing or receiving an order changes the order lists, the
@@ -35,6 +36,7 @@ export const dcfpKeys = {
   order: (id: string) => [ROOT, 'orders', id] as const,
   events: (id: string) => [ROOT, 'orders', id, 'events'] as const,
   warehouses: [ROOT, 'warehouses'] as const,
+  fieldUsers: [ROOT, 'field-users'] as const,
 };
 
 interface ReadOptions {
@@ -145,6 +147,25 @@ export function useReceiveOrder(id: string) {
       ]);
     },
     // The receipt form shows the failure in place.
+    meta: { handlesOwnErrors: true },
+  });
+}
+
+/** The VHTs, hotspot managers and delivery agents in the DCFP's district. */
+export function useFieldUsers(options: ReadOptions = {}) {
+  return useApiQuery(dcfpKeys.fieldUsers, listFieldUsers, options);
+}
+
+/** Creates a field user in the DCFP's district. The form places a refusal beside its fields. */
+export function useCreateFieldUser() {
+  const http = useHttp();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NewFieldUserInput) => createFieldUser(http, input),
+    onSuccess: async () => {
+      toast.success('User created');
+      await queryClient.invalidateQueries({ queryKey: dcfpKeys.fieldUsers });
+    },
     meta: { handlesOwnErrors: true },
   });
 }

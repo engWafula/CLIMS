@@ -18,6 +18,8 @@ type AccountInput struct {
 	Assignment FacilityAssignment `json:"-"`
 	// StoreID is the store whose orders and stock the account works with; see CreateUserRequest.
 	StoreID *string `json:"-"`
+	// SubcountyID is where a field worker works; set by POST /users/district (DistrictUserRequest).
+	SubcountyID *string `json:"-"`
 }
 
 type FacilityAssignment struct {

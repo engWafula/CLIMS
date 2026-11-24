@@ -59,10 +59,10 @@ func (r *Repository) CreateUserWithRoles(ctx context.Context, req AccountInput, 
 	}
 	var id string
 	err = tx.QueryRow(ctx, `INSERT INTO users
-		(username,email,password,firstname,lastname,phone_number,location,organisation_unit_id,hot_spot_id,store_id,status,created_at,updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id`,
+		(username,email,password,firstname,lastname,phone_number,location,organisation_unit_id,hot_spot_id,store_id,subcounty_id,status,created_at,updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id`,
 		req.Username, req.Email, passwordHash, req.FirstName, req.LastName, req.Phone,
-		req.Location, req.Assignment.OrganisationUnitID, req.Assignment.HotSpotID, req.StoreID).Scan(&id)
+		req.Location, req.Assignment.OrganisationUnitID, req.Assignment.HotSpotID, req.StoreID, req.SubcountyID).Scan(&id)
 	if err != nil {
 		return "", err
 	}

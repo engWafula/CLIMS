@@ -82,6 +82,9 @@ const PERMISSION_LABELS: Readonly<Record<string, string>> = {
   'users:read': 'List users and view user accounts',
   'users:create': 'Create user accounts',
   'users:update': 'Activate or disable user accounts',
+  'users:district_read': 'List the field users in their district',
+  'users:district_create':
+    'Create VHT, hotspot manager and delivery agent accounts in their district',
   'roles:read': 'List roles and their permissions',
   'roles:assign': 'Assign roles to users',
   'roles:manage': 'Change the permissions of roles',

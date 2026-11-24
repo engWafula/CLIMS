@@ -9,6 +9,9 @@ import (
 func RegisterRoutes(router fiber.Router, handler *Handler, jwtMiddleware, activeUser fiber.Handler) {
 	users := router.Group("/users", jwtMiddleware, activeUser)
 	users.Get("/", rbac.RequirePermission("users:read"), handler.ListUsers)
+	// Registered before /:id so "district" is not read as a user ID.
+	users.Get("/district", rbac.RequirePermission("users:district_read"), handler.ListDistrictUsers)
+	users.Post("/district", rbac.RequirePermission("users:district_create"), handler.CreateDistrictUser)
 	users.Get("/:id", rbac.RequirePermission("users:read"), handler.GetUser)
 	users.Post("/", rbac.RequirePermission("users:create"), rbac.RequirePermission("roles:assign"), handler.CreateUser)
 	users.Patch("/:id/role", rbac.RequirePermission("roles:assign"), handler.AssignRole)

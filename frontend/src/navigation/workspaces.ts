@@ -392,6 +392,22 @@ export const workspaces: readonly Workspace[] = [
             ],
             details: [{ path: '/dcfp/hotspots/[id]', label: 'Hotspot', layout: 'detail' }],
           },
+          {
+            id: 'field-users',
+            label: 'Field users',
+            icon: Users,
+            pages: [
+              {
+                path: '/dcfp/users',
+                tab: 'Field users',
+                title: 'Field users',
+                description:
+                  'VHTs, hotspot managers and delivery agents who work in your district, and where each one works.',
+                layout: 'table',
+                permission: 'users:district_read',
+              },
+            ],
+          },
         ],
       },
       {
