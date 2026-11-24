@@ -42,8 +42,10 @@ func (h *Handler) stockout(c fiber.Ctx) error {
 		return response.Error(c, 422, "message must be at most 4000 characters", nil)
 	}
 	access := scopeFor(users.CurrentUser(c))
-	allowed := access.allStores || assigned(access.hotSpotID, hotSpotID)
-	if !allowed && access.stockoutDistrict {
+	// A hotspot manager reports for their own hotspot only, whatever else their account holds,
+	// matching what they may see (visibleReports).
+	allowed := assigned(access.hotSpotID, hotSpotID) || (access.hotSpotID == nil && access.allStores)
+	if !allowed && access.hotSpotID == nil && access.stockoutDistrict {
 		// A VHT may raise an alert on behalf of any active hotspot in the district they work in.
 		var err error
 		if allowed, err = h.repo.activeInDistrictOf(c.Context(), access.userID, hotSpotID); err != nil {

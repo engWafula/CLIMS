@@ -417,6 +417,7 @@ func TestAuthRBACIntegration(t *testing.T) {
 
 	testDistrictStockouts(t, pool, request, login, adminToken, condomID)
 	testDistrictAccounts(t, pool, request, login, adminToken)
+	testManagerVisibility(t, pool, request, login, adminToken)
 	testHotSpotActivation(t, pool, request, login, adminToken, destinationID)
 	testNotifications(t, pool, request, login, adminToken, destinationID)
 	testAudit(t, pool, repo, service, auditor, adminToken)

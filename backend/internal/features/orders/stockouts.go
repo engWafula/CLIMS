@@ -137,11 +137,14 @@ const reportTables = ` FROM stockout_reports r
 	LEFT JOIN LATERAL (SELECT name, phone_number FROM contact_persons
 		WHERE hot_spot_id = h.id ORDER BY created_at DESC, id DESC LIMIT 1) cp ON true` + NotificationFacts
 
-// visibleReports limits reports to the user's district store, their hotspot, or the ones they sent,
-// including an open report their own repeat was added to; orders:all_stores sees every report.
-// $1 all stores, $2 store, $3 hotspot, $4 user.
-const visibleReports = `($1::boolean OR r.district_store_id = $2::uuid OR r.hot_spot_id = $3::uuid OR r.reported_by_id = $4::uuid
-	OR EXISTS (SELECT 1 FROM stockout_report_events e WHERE e.report_id = r.id AND e.actor_id = $4::uuid))`
+// visibleReports limits the reports a user sees. A hotspot manager (a user assigned a hotspot) sees
+// their hotspot's reports and no others: not through orders:all_stores or a store granted to their
+// account, nor reports of another hotspot they once sent or acted on. Anyone else sees their district
+// store's reports, the ones they sent, and an open report their own repeat was added to;
+// orders:all_stores sees every report. $1 all stores, $2 store, $3 hotspot, $4 user.
+const visibleReports = `(CASE WHEN $3::uuid IS NOT NULL THEN r.hot_spot_id = $3::uuid
+	ELSE ($1::boolean OR r.district_store_id = $2::uuid OR r.reported_by_id = $4::uuid
+		OR EXISTS (SELECT 1 FROM stockout_report_events e WHERE e.report_id = r.id AND e.actor_id = $4::uuid)) END)`
 
 type rowQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
