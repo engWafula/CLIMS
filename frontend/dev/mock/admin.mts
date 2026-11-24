@@ -184,6 +184,10 @@ export const PERMISSIONS = [
   'orders:replenish',
   'orders:stockout',
   'orders:supply_hotspots',
+  'audit:read',
+  'reports:approve',
+  'reports:configure',
+  'reports:read',
   'roles:assign',
   'roles:manage',
   'roles:read',
@@ -194,9 +198,23 @@ export const PERMISSIONS = [
 
 const ROLE_SEED: readonly [string, string[]][] = [
   ['admin', PERMISSIONS],
-  ['moh', ['catalogue:manage', 'users:read', 'roles:read']],
-  ['nms', ['catalogue:manage']],
-  ['jms', ['catalogue:manage']],
+  // Migration 39: MOH reads everything and changes nothing; the warehouses read their reports.
+  [
+    'moh',
+    [
+      'audit:read',
+      'hotspots:all_districts',
+      'hotspots:read',
+      'inventory:read',
+      'orders:all_stores',
+      'orders:read',
+      'reports:read',
+      'roles:read',
+      'users:read',
+    ],
+  ],
+  ['nms', ['catalogue:manage', 'reports:read']],
+  ['jms', ['catalogue:manage', 'reports:read']],
   ['dfcp', ['users:read']],
   ['store incharge', []],
   ['hotspot manager', []],

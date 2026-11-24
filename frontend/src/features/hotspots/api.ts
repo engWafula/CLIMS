@@ -16,7 +16,7 @@ import {
  * later deactivate and reactivate it. Every decision carries a comment.
  *
  *   GET  /hotspots?status=&review_status=&district_id=&limit=&offset=   Hotspot[], most recently updated first
- *   POST /hotspots                       HotspotSubmission → 201
+ *   POST /hotspots                       (the mobile app's VHT submission; not used on the web)
  *   GET  /hotspots/:id                   Hotspot with its comment thread
  *   GET  /hotspots/:id/events            HotspotEvent[]
  *   POST /hotspots/:id/comments          { comment } → 201
@@ -93,24 +93,6 @@ const eventSchema = z.object({
 
 export type HotspotEvent = z.infer<typeof eventSchema>;
 
-/** What a VHT sends to submit a hotspot they identified. */
-export interface HotspotSubmission {
-  name: string;
-  type: string;
-  region_id: string;
-  district_id: string;
-  subcounty_id: string;
-  village: string | null;
-  latitude: number;
-  longitude: number;
-  contact_person_name: string;
-  contact_person_phone: string;
-  has_condom_dispenser: boolean;
-  dispenser_condition: string | null;
-  /** Stored as the first comment in the hotspot's thread. */
-  comment: string | null;
-}
-
 /** The DCFP's decisions on a hotspot. Each needs a comment. */
 export type HotspotDecision = 'activate' | 'deactivate' | 'reject';
 
@@ -182,10 +164,6 @@ export async function listHotspotEvents(
     await http.get(`${hotspotPath(id)}/events`, { signal }),
     'hotspot events',
   );
-}
-
-export async function submitHotspot(http: HttpClient, input: HotspotSubmission): Promise<void> {
-  await http.post('/hotspots', input);
 }
 
 export async function commentOnHotspot(

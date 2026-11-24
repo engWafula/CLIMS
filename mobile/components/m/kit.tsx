@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
   Animated,
   Easing,
   KeyboardAvoidingView,
@@ -1732,27 +1731,22 @@ export function Sheet({
 
 /** Pulses while content loads; holds still when the phone asks for reduced motion. */
 function usePulse() {
+  const reduce = useReducedMotion();
   const [v] = useState(() => new Animated.Value(0.55));
   useEffect(() => {
-    let loop: Animated.CompositeAnimation | null = null;
-    let live = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .catch(() => false)
-      .then((reduce) => {
-        if (!live || reduce) return;
-        loop = Animated.loop(
-          Animated.sequence([
-            Animated.timing(v, { toValue: 1, duration: 650, useNativeDriver: true }),
-            Animated.timing(v, { toValue: 0.55, duration: 650, useNativeDriver: true }),
-          ]),
-        );
-        loop.start();
-      });
-    return () => {
-      live = false;
-      loop?.stop();
-    };
-  }, [v]);
+    if (reduce) {
+      v.setValue(0.55);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 650, useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0.55, duration: 650, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [v, reduce]);
   return v;
 }
 

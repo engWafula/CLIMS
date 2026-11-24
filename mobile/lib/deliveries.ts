@@ -50,6 +50,11 @@ export async function listMyDeliveries(limit = 100): Promise<RiderDelivery[]> {
   return data.data;
 }
 
+/** Forget the saved list when the rider signs out: it holds hotspot contacts' phone numbers. */
+export async function forgetSavedDeliveries(): Promise<void> {
+  await AsyncStorage.removeItem(CACHE).catch(() => {});
+}
+
 /** The last list saved on this phone, or null. */
 export async function savedDeliveries(): Promise<RiderDelivery[] | null> {
   const raw = await AsyncStorage.getItem(CACHE).catch(() => null);

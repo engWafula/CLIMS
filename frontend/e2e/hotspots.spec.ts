@@ -1,42 +1,18 @@
 import { expect, test } from '@playwright/test';
 
 import { resetMock } from './support/mock';
-import { choose, expectToast, open } from './support/ui';
+import { expectToast, open } from './support/ui';
 
 /*
- * Hotspot review (`dev/mock/hotspots.mts`, on the Go API's endpoints): a VHT submits a hotspot,
- * and the DCFP activates or rejects it, and can later deactivate it; every decision needs a
- * comment. The mock seeds Kajjansi Weekly Market and Bwebajja Nite Spot (submitted), Kasenyi
+ * Hotspot review (`dev/mock/hotspots.mts`, on the Go API's endpoints): a VHT submits a hotspot in
+ * the mobile app, and the DCFP activates or rejects it, and can later deactivate it; every decision
+ * needs a comment. The mock seeds Kajjansi Weekly Market and Bwebajja Nite Spot (submitted), Kasenyi
  * Landing Site and three more active hotspots, and Nansana Taxi Park (rejected), all in Wakiso.
  * The hotspots it generates for the map, in other districts, come after them in the list.
  */
 
 test.beforeEach(async ({ request }) => {
   await resetMock(request);
-});
-
-test('a VHT submits a hotspot for district review', async ({ page }) => {
-  await open(page, '/vht', 'My hotspots');
-  await page.getByRole('button', { name: 'Submit hotspot' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Submit a hotspot' });
-
-  await dialog.getByLabel('Hotspot name').fill('Kitoro Guest House');
-  await dialog.getByLabel('Type of place').fill('Lodge');
-  await choose(page, 'Region', 'South Central');
-  await choose(page, 'District', 'Wakiso');
-  await choose(page, 'Subcounty', 'Katabi Town Council');
-  await dialog.getByLabel('Hotspot manager').fill('Nalubega Ruth');
-  await dialog.getByLabel("Manager's phone").fill('0772 555 011');
-  await choose(page, 'Condom dispenser on site', 'No');
-  await dialog.getByLabel('Latitude').fill('0.0612');
-  await dialog.getByLabel('Longitude').fill('32.4419');
-  await dialog.getByRole('button', { name: 'Submit hotspot' }).click();
-
-  await expectToast(page, 'Hotspot submitted. The district focal person will review it.');
-  await expect(dialog).toBeHidden();
-  const row = page.getByRole('row', { name: /Kitoro Guest House/ });
-  await expect(row).toContainText('+256772555011');
-  await expect(row).toContainText('submitted');
 });
 
 test('the DCFP activates a submitted hotspot with a comment, then deactivates it', async ({

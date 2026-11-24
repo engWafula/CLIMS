@@ -34,7 +34,7 @@ Passwords, password hashes and tokens are never recorded. `audit.Diff` and the d
 | `user.disabled`                 | An administrator disables an account, with the sessions it ended        |
 | `user.enabled`                  | An administrator re-enables an account                                  |
 | `user.store_assigned`           | A user's store changes; the old and new stores are related records      |
-| `user.sessions_revoked`         | An administrator signs a user out everywhere                            |
+| `user.sessions_revoked`         | An administrator or identity sync signs a user out everywhere           |
 | `user.identity_linked`          | The identity sync client links an SSO identity to an account            |
 | `role.permissions_changed`      | A role's permissions are replaced, before and after                     |
 | `access.denied`                 | A data-changing request is refused for a missing permission             |

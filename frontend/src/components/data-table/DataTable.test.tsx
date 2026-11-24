@@ -114,6 +114,7 @@ describe('DataTable', () => {
     renderTable({ rows: undefined, isLoading: true });
     expect(screen.queryByText('No sites yet')).not.toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Sites' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getAllByRole('row')).toHaveLength(1);
   });
 
   it('shows a safe error message with a way to retry when loading fails', async () => {

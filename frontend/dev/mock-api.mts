@@ -32,6 +32,7 @@ import { handleFulfilment, seedFulfilment } from './mock/fulfilment.mts';
 import { handleMoh, seedMoh } from './mock/moh.mts';
 import { handleOnboarding, seedOnboarding } from './mock/onboarding.mts';
 import { handleAdmin, handleAuth, seedAdmin, signedInUser } from './mock/admin.mts';
+import { handleAnalytics, seedAnalytics } from './mock/analytics.mts';
 import { handleReports, seedReports } from './mock/reports.mts';
 import { handleHotspots, seedHotspotsMock } from './mock/hotspots.mts';
 
@@ -86,6 +87,7 @@ function seedAll(dataset: (typeof datasets)[number]): void {
   seedOnboarding();
   seedAdmin(dataset);
   seedReports(dataset);
+  seedAnalytics(dataset);
 }
 seedAll(DATASET);
 const lookups: Record<string, readonly unknown[]> = { organizationUnits };
@@ -106,6 +108,12 @@ function summaryOrders(): SummaryOrder[] {
 }
 
 function send(response: ServerResponse, { status, body }: Reply): void {
+  // A text body is a file download (a report's CSV); everything else is the JSON envelope.
+  if (typeof body === 'string') {
+    response.writeHead(status, { 'Content-Type': 'text/csv; charset=utf-8' });
+    response.end(body);
+    return;
+  }
   response.writeHead(status, { 'Content-Type': 'application/json' });
   response.end(JSON.stringify(body));
 }
@@ -218,6 +226,14 @@ async function route(request: IncomingMessage): Promise<Reply> {
     new URL(request.url ?? '/', 'http://mock').searchParams,
   );
   if (national) return national;
+  // Programme reports and analytics (`/reports/*`), calculated from a year of generated activity.
+  const analytics = handleAnalytics(
+    request.method ?? 'GET',
+    parts,
+    body,
+    new URL(request.url ?? '/', 'http://mock').searchParams,
+  );
+  if (analytics) return analytics;
   const reports = handleReports(
     request.method ?? 'GET',
     parts,

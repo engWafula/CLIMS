@@ -113,6 +113,7 @@ func TestAuthRBACIntegration(t *testing.T) {
 	// Importing after migrations resolves the backup's shared usernames and phone numbers.
 	assertUniqueIdentifiers(t, pool)
 	assertWarehouseGrants(t, pool)
+	assertReportAccess(t, pool)
 	auditor := audit.NewService(pool)
 	repo := users.NewRepository(pool, auditor)
 	var legacyAdminID string
@@ -332,6 +333,9 @@ func TestAuthRBACIntegration(t *testing.T) {
 	request("GET", "/users", nil, userToken, 403)
 	request("PUT", fmt.Sprintf("/users/%s/roles", adminID), map[string]any{"role_ids": []string{mohRole, hotspotRole}}, adminToken, 409)
 	request("PUT", "/roles/"+adminRole+"/permissions", map[string]any{"permissions": []string{}}, adminToken, 409)
+	// Anyone can sign up into the registered user role, so it holds nothing.
+	request("PUT", "/roles/"+rbac.RegisteredUserRoleID+"/permissions", map[string]any{"permissions": []string{"orders:read"}}, adminToken, 409)
+	request("PUT", "/roles/"+rbac.RegisteredUserRoleID+"/permissions", map[string]any{"permissions": []string{}}, adminToken, 200)
 	request("PATCH", fmt.Sprintf("/users/%s/status", id), map[string]any{"status": "disabled"}, adminToken, 200)
 	request("GET", "/auth/me", nil, userToken, 403)
 	login("newuser@example.test", "test-password-123", 403)
@@ -343,6 +347,30 @@ func TestAuthRBACIntegration(t *testing.T) {
 	testSessions(t, pool, request, login, adminToken, id, "newuser@example.test")
 	testLoginIdentifiers(t, request, adminToken, mohRole)
 	userToken = login("newuser@example.test", "test-password-123", 200)
+
+	// A role given users:update, users:create and roles:assign manages accounts, but only administrators
+	// can hand out the administrator role or change an administrator's account.
+	var mohPermissions, userRoles []string
+	if err := pool.QueryRow(context.Background(), `SELECT coalesce(array_agg(p.name), '{}') FROM role_permission rp
+		JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = $1`, mohRole).Scan(&mohPermissions); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT coalesce(array_agg(role_id::text), '{}') FROM role_user
+		WHERE user_id = $1`, id).Scan(&userRoles); err != nil {
+		t.Fatal(err)
+	}
+	request("PUT", "/roles/"+mohRole+"/permissions", map[string]any{"permissions": []string{"users:read", "users:create", "users:update", "roles:assign"}}, adminToken, 200)
+	request("PUT", rolePath, map[string]any{"role_ids": []string{mohRole}}, adminToken, 200)
+	request("PUT", rolePath, map[string]any{"role_ids": []string{mohRole, adminRole}}, userToken, 403)
+	request("PATCH", fmt.Sprintf("/users/%s/role", id), map[string]any{"role_id": adminRole}, userToken, 403)
+	request("POST", "/users", map[string]any{"username": "made-admin", "email": "made-admin@example.test",
+		"password": "test-password-123", "role_ids": []string{adminRole}}, userToken, 403)
+	request("PATCH", fmt.Sprintf("/users/%s/status", adminID), map[string]any{"status": "disabled"}, userToken, 403)
+	request("PATCH", fmt.Sprintf("/users/%s/store", adminID), map[string]any{"store_id": nil}, userToken, 403)
+	request("DELETE", fmt.Sprintf("/users/%s/sessions", adminID), nil, userToken, 403)
+	request("PUT", rolePath, map[string]any{"role_ids": []string{mohRole, hotspotRole}}, userToken, 200)
+	request("PUT", rolePath, map[string]any{"role_ids": userRoles}, adminToken, 200)
+	request("PUT", "/roles/"+mohRole+"/permissions", map[string]any{"permissions": mohPermissions}, adminToken, 200)
 	request("GET", "/users?limit=101", nil, adminToken, 400)
 	request("GET", "/users?offset=-1", nil, adminToken, 400)
 	request("GET", "/users/not-a-number", nil, adminToken, 400)
@@ -498,22 +526,27 @@ func TestAuthRBACIntegration(t *testing.T) {
 	}
 	if _, err = upgrade.Exec(ctx, `UPDATE schema_migrations SET version=3;
 		INSERT INTO role_permission(role_id, permission_id)
-		SELECT r.rbac_id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name='moh' AND p.name='roles:read'`); err != nil {
+		SELECT r.rbac_id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name='moh' AND p.name='users:create'`); err != nil {
 		t.Fatal(err)
 	}
 	if err = database.RunMigrations(u.String()); err != nil {
 		t.Fatal(err)
 	}
-	// Migrations 18 and 23 deliberately grant catalogue:manage to moh, nms and jms, migrations 31 and
-	// 38 give the warehouse and DCFP roles their order, inventory and (DCFP) report defaults, and
-	// migration 35 gives delivery agents orders:deliver, and migration 39 gives the DCFP role its district
-	// user permissions; every other non-admin grant is the custom one.
+	// Migrations 18 and 23 grant catalogue:manage to moh, nms and jms, and migration 39 takes it back from
+	// moh, which becomes read-only. Migrations 31 and 38 give the warehouse and DCFP roles their order,
+	// inventory and (DCFP) report defaults, migration 35 gives delivery agents orders:deliver,
+	// migration 39 gives moh every read permission and the warehouses reports:read, and migration 40 gives
+	// the DCFP role its district user permissions. Every other non-admin grant is the custom one, which
+	// survives even though migration 39 makes moh read-only by default.
 	var catalogueManagers string
 	if err = upgrade.QueryRow(ctx, `SELECT (SELECT count(*) FROM users),
 		(SELECT count(*) FROM role_permission rp JOIN roles r ON r.id = rp.role_id
 			JOIN permissions p ON p.id = rp.permission_id WHERE r.name<>'admin' AND p.name<>'catalogue:manage'
 			AND NOT (r.name IN ('nms', 'jms', 'dfcp') AND (p.name LIKE 'orders:%' OR p.name LIKE 'inventory:%'))
-			AND NOT (r.name = 'dfcp' AND p.name = 'reports:read')
+			AND NOT (r.name IN ('dfcp', 'nms', 'jms') AND p.name = 'reports:read')
+			AND NOT (r.name = 'moh' AND p.name IN ('audit:read', 'hotspots:all_districts', 'hotspots:read',
+				'hotspots:read_district', 'inventory:read', 'orders:all_stores', 'orders:read', 'reports:read',
+				'roles:read', 'users:read'))
 			AND NOT (r.name = 'delivery agent' AND p.name = 'orders:deliver')
 			AND NOT (r.name = 'dfcp' AND p.name IN ('users:district_read', 'users:district_create'))),
 		(SELECT string_agg(r.name, ',' ORDER BY r.name) FROM role_permission rp JOIN roles r ON r.id = rp.role_id
@@ -521,7 +554,7 @@ func TestAuthRBACIntegration(t *testing.T) {
 		&userCount, &roleCount, &catalogueManagers); err != nil {
 		t.Fatal(err)
 	}
-	if userCount != 455 || roleCount != 1 || catalogueManagers != "jms,moh,nms" {
+	if userCount != 455 || roleCount != 1 || catalogueManagers != "jms,nms" {
 		t.Fatalf("upgrade changed user count, lost custom permission grants or granted the catalogue to %q", catalogueManagers)
 	}
 	assertWarehouseGrants(t, upgrade)

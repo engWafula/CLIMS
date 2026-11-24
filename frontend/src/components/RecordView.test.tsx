@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -17,15 +17,26 @@ function Harness({ fetchOrder }: { fetchOrder: () => Promise<Order> }) {
     queryFn: fetchOrder,
     retry: false,
   });
+  const client = useQueryClient();
   return (
-    <RecordView
-      query={query}
-      layout="detail"
-      noun="order"
-      back={{ href: '/dcfp/orders', label: 'Back to orders' }}
-    >
-      {(order) => <h1>Order {order.id}</h1>}
-    </RecordView>
+    <>
+      <button type="button" onClick={() => void client.invalidateQueries({ queryKey: ['order'] })}>
+        Refresh
+      </button>
+      <RecordView
+        query={query}
+        layout="detail"
+        noun="order"
+        back={{ href: '/dcfp/orders', label: 'Back to orders' }}
+      >
+        {(order) => (
+          <>
+            <h1>Order {order.id}</h1>
+            <input aria-label="Draft note" />
+          </>
+        )}
+      </RecordView>
+    </>
   );
 }
 
@@ -69,6 +80,23 @@ describe('RecordView', () => {
 
     expect(await screen.findByRole('heading', { name: 'Order ORD-1' })).toBeInTheDocument();
     expect(fetchOrder).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a draft mounted when a background refresh fails', async () => {
+    const fetchOrder = vi
+      .fn<() => Promise<Order>>()
+      .mockResolvedValueOnce({ id: 'ORD-1' })
+      .mockRejectedValueOnce(new ApiError({ kind: 'network', message: 'Network down' }))
+      .mockResolvedValueOnce({ id: 'ORD-1' });
+    const user = userEvent.setup();
+    renderRecord(fetchOrder);
+    await screen.findByRole('heading', { name: 'Order ORD-1' });
+    await user.type(screen.getByRole('textbox', { name: 'Draft note' }), 'Unsaved work');
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not refresh this order');
+    expect(screen.getByRole('textbox', { name: 'Draft note' })).toHaveValue('Unsaved work');
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByRole('textbox', { name: 'Draft note' })).toHaveValue('Unsaved work');
   });
 
   it('renders the page once the record has loaded', async () => {

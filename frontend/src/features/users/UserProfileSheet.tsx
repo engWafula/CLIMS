@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { DetailList } from '@/components/DetailList';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Sheet,
   SheetContent,
@@ -76,7 +77,8 @@ export function UserProfileSheet({
   const storeNeed = storeNeedOf(user.roles.map((role) => role.name));
   let storeText = 'No store';
   if (store) storeText = storeLabel(store);
-  else if (user.store_id) storeText = stores.isPending ? 'Loading…' : 'A store no longer listed';
+  else if (user.store_id)
+    storeText = stores.isError ? 'Could not load the store' : 'A store no longer listed';
   const name = userDisplayName(user);
   const permissions = effectivePermissions(user);
   const devices = user.active_sessions ?? 0;
@@ -140,7 +142,14 @@ export function UserProfileSheet({
           </Section>
 
           <Section title="Store">
-            <p className="text-sm">{storeText}</p>
+            {user.store_id && stores.isPending ? (
+              <div role="status" aria-busy="true">
+                <span className="sr-only">Loading store…</span>
+                <Skeleton aria-hidden="true" className="h-4 w-1/2" />
+              </div>
+            ) : (
+              <p className="text-sm">{storeText}</p>
+            )}
             {storeNeed && !user.store_id ? (
               <p className="text-muted-foreground text-xs">
                 Their role works at a store. Until one is set they see no orders or stock.

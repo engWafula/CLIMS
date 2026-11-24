@@ -45,7 +45,8 @@ export function TableFilters({ label, columns, filters, onChange }: Props) {
           aria-label={`Filters${filters.length ? ` ${filters.length}` : ''} for ${label.toLowerCase()}`}
         >
           <Filter aria-hidden="true" />
-          Filters
+          {/* The space keeps the visible text "Filters 2" inside the accessible name. */}
+          Filters{' '}
           {filters.length ? (
             <span className="bg-secondary rounded px-1.5 text-xs tabular-nums">
               {filters.length}

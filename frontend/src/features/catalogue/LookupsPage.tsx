@@ -158,7 +158,7 @@ export function LookupsPage({ kind }: LookupsPageProps) {
 
   const filtered = filter.value !== 'all';
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <PageActions>
         <ExportButton name={text.title} columns={columns} rows={rows} />
         {addButton}

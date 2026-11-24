@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { focusManager, QueryObserver } from '@tanstack/react-query';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/api';
 
@@ -32,6 +33,46 @@ describe('shouldRetryQuery', () => {
 });
 
 describe('createQueryClient', () => {
+  afterEach(() => {
+    focusManager.setFocused(undefined);
+    vi.useRealTimers();
+  });
+
+  it('refreshes active operational data in the foreground and pauses in the background', async () => {
+    vi.useFakeTimers();
+    focusManager.setFocused(true);
+    const client = createQueryClient({ onMutationError: vi.fn() });
+    const fetchOrders = vi.fn().mockResolvedValue([]);
+    const observer = new QueryObserver(client, {
+      queryKey: ['dcfp', 'orders'],
+      queryFn: fetchOrders,
+    });
+    const unsubscribe = observer.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchOrders).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchOrders).toHaveBeenCalledTimes(2);
+    focusManager.setFocused(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchOrders).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    client.clear();
+  });
+
+  it('keeps expensive map and ledger reads out of periodic polling', () => {
+    const client = createQueryClient({ onMutationError: vi.fn() });
+    const interval = client.getDefaultOptions().queries?.refetchInterval;
+    expect(typeof interval).toBe('function');
+    if (typeof interval !== 'function') throw new Error('Expected a refresh policy');
+    const query = (queryKey: readonly unknown[]) =>
+      client.getQueryCache().build(client, { queryKey });
+    expect(interval(query(['hotspots', 'map', 'national']))).toBe(false);
+    expect(interval(query(['warehouse-stock', 'store', 'movements', 'ledger', 'all']))).toBe(false);
+    expect(interval(query(['dcfp', 'orders']))).toBe(60_000);
+    expect(interval(query(['hotspots', 'all', {}]))).toBe(300_000);
+    expect(interval(query(['access', 'roles']))).toBe(300_000);
+  });
+
   it('reports a failed mutation that has no error handler of its own', async () => {
     const onMutationError = vi.fn();
     const client = createQueryClient({ onMutationError });

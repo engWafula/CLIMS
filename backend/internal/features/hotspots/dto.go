@@ -44,6 +44,16 @@ func (d *Details) Normalize() {
 	d.DispenserCondition = trimmedOrNil(d.DispenserCondition)
 }
 
+// positionErrors refuses (0, 0): it is the position a phone or form reports when it has none, it lies in
+// the Gulf of Guinea, and the hotspot would never appear on the map. Nil when the position is usable.
+func (d *Details) positionErrors() map[string]string {
+	if d.Latitude == nil || d.Longitude == nil || *d.Latitude != 0 || *d.Longitude != 0 {
+		return nil
+	}
+	const message = "Record where the hotspot is; (0, 0) is not a position in Uganda."
+	return map[string]string{"latitude": message, "longitude": message}
+}
+
 func (r *SubmitRequest) Normalize() {
 	r.Details.Normalize()
 	r.Comment = trimmedOrNil(r.Comment)

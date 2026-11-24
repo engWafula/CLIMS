@@ -25,6 +25,9 @@ describe('safeReturnPath', () => {
     { name: 'a path with a line break', candidate: '/moh\r\nSet-Cookie: x=1' },
     { name: 'the sign-in page itself', candidate: '/sign-in' },
     { name: 'the sign-in page with a query', candidate: '/sign-in?next=/moh' },
+    { name: 'the sign-in page with a fragment', candidate: '/sign-in#form' },
+    { name: 'the sign-in page with a slash', candidate: '/sign-in/' },
+    { name: 'a normalized path to sign-in', candidate: '/moh/../sign-in' },
   ])('falls back for $name', ({ candidate }) => {
     expect(resolve(candidate)).toBe('/home');
   });

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -128,7 +129,7 @@ export function ComboboxField({
     }
   }
 
-  const triggerText = isLoading ? 'Loading…' : (selected?.label ?? placeholder);
+  const triggerText = selected?.label ?? placeholder;
 
   return (
     <Field data-invalid={message ? true : undefined} className={className}>
@@ -145,6 +146,7 @@ export function ComboboxField({
             type="button"
             role="combobox"
             aria-expanded={open}
+            aria-busy={isLoading}
             aria-controls={open ? listId : undefined}
             aria-required={required}
             aria-invalid={message ? true : undefined}
@@ -154,7 +156,16 @@ export function ComboboxField({
             onBlur={onBlur}
             className="border-input bg-card data-placeholder:text-muted-foreground w-full justify-between pr-2 text-left font-normal"
           >
-            <span className="min-w-0 truncate">{triggerText}</span>
+            {isLoading ? (
+              <>
+                <span role="status" className="sr-only">
+                  Loading {noun}…
+                </span>
+                <Skeleton aria-hidden="true" className="h-3.5 w-2/5 max-w-32" />
+              </>
+            ) : (
+              <span className="min-w-0 truncate">{triggerText}</span>
+            )}
             <ChevronDownIcon
               className="text-muted-foreground pointer-events-none size-4 shrink-0"
               aria-hidden="true"

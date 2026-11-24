@@ -111,8 +111,9 @@ func (r *Repository) expiryExceptions(ctx context.Context, s scope, f SupplyFilt
 		LEFT JOIN users u ON u.id = e.authorized_by_id
 		WHERE ($1::boolean OR sb.store_id = $2::uuid) AND e.created_at >= $3 AND e.created_at < $4
 			AND ($5::uuid IS NULL OR sb.store_id = $5) AND ($6 = '' OR c.category = $6)
+			AND ($9 = '' OR s.store_type = $9) AND ($10::uuid IS NULL OR s.district_id = $10)
 		ORDER BY e.created_at DESC, e.id DESC LIMIT $7 OFFSET $8`,
-		s.all, s.storeID, f.From, f.To, f.StoreID, f.Category, f.Limit, f.Offset)
+		s.all, s.storeID, f.From, f.To, f.StoreID, f.Category, f.Limit, f.Offset, f.StoreType, f.DistrictID)
 	if err != nil {
 		return nil, err
 	}

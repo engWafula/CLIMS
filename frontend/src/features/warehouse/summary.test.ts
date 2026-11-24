@@ -8,11 +8,13 @@ import {
   formatDays,
   formatMonths,
   formatPercent,
+  formatStock,
   nextExpiry,
   pendingBreakdown,
   pendingOrders,
   periodFrom,
   periodRange,
+  productName,
   stockCover,
   successBreakdown,
   successRate,
@@ -55,6 +57,19 @@ describe('amounts', () => {
   it('says none in the words given', () => {
     expect(formatAmounts([])).toBe('0');
     expect(formatAmounts([], 'None')).toBe('None');
+  });
+
+  it('leaves pieces unnamed on the stock screens, naming any other unit', () => {
+    expect(formatStock([{ unit: 'Pieces', quantity: 5_499_800 }])).toBe('5,499,800');
+    expect(
+      formatStock([
+        { unit: 'piece', quantity: 1000 },
+        { unit: 'Carton', quantity: 40 },
+      ]),
+    ).toBe('1,000 · 40 Carton');
+    expect(formatStock([], 'None')).toBe('None');
+    expect(productName('Orange Free Female', 'Pieces')).toBe('Orange Free Female');
+    expect(productName('Orange Free Female', 'Box')).toBe('Orange Free Female, Box');
   });
 });
 

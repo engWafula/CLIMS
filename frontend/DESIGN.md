@@ -62,12 +62,20 @@ numbers that are compared use `tabular-nums`.
 | Table cells  | 6 × 12px (2px in the View menu's compact rows; header 6 × 12px), 16px at the edges    |
 | Status chips | 22px pill (`status-chip`), 10.5px bold capitals, a dot, a hairline of its own colour  |
 
-Spacing runs on a 4px scale with three steps that carry the rhythm: 16px between a page's
-sections and side-by-side columns (`gap-section`), 16px padding inside a card (`Card`,
-`StatCard`, `ChartCard`), and 12px between groups inside a card. Density comes from spacing and
-control height, not from shrinking what people read: body text, table cells and inputs stay
-14px. Only supporting text steps down (13px sidebar items and page descriptions, 11px table
-header capitals).
+Spacing runs on a 4px scale, and 12px carries the rhythm. It is the gap between a page's
+sections and side-by-side columns (`gap-section`), and the same 12px as the gaps between stat
+cards, so a row of cards and the columns under it share gutters. Cards (`Card`, `StatCard`,
+`ChartCard`, `ShareList`) pad 16px at the sides and 12px at top and bottom, with 12px between
+groups inside them. A page wrapper uses `gap-section`, never its own `gap-4` or `gap-6`. Density
+comes from spacing and control height, not from shrinking what people read: body text, table
+cells and inputs stay 14px. Only supporting text steps down (13px sidebar items and page
+descriptions, 11px table header capitals).
+
+Fill the space a short list leaves rather than stretching its card. A card in a grid takes the
+height of its content (`items-start`), and the section below moves up into the gap, as the
+warehouse dashboard's charts sit under its task list. A page's filters share one row with what
+the page is about: the warehouse pages put the district menu (`DistrictSelect`) at the end of
+the row naming the warehouse.
 
 ### Three rules that are easy to get wrong
 
@@ -142,29 +150,36 @@ both themes). Beside the ministry's name it is decorative (`alt=""`); on its own
 
 Reach for these before writing markup.
 
-| Need                       | Use                                                                                                              |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Page-level buttons         | `components/PageActions` (title and description come from the table)                                             |
-| Any table                  | `components/data-table/DataTable`: the only table. See "Tables" below                                            |
-| Per-row actions            | `components/data-table/RowActions` (`ROW_ACTION_SEPARATOR` groups items)                                         |
-| A headline figure          | `components/StatCard` in a `StatCardGrid` (`trend` adds change and line; `detail` one line of what is behind it) |
-| An amount in several units | `StatCard` `extra`: the unit holding most is the figure, the rest one quieter line under it; never add units     |
-| Things to do               | `components/TaskList` (status, title, detail, a button to where it is done; lays out by its own width)           |
-| A record's ID and status   | `components/DetailHeader` (progress goes in its band)                                                            |
-| A record's progress        | `components/StepTracker` (state in words above each step)                                                        |
-| History or recent events   | `components/ActivityTimeline` (`connected` or `compact`; role dots)                                              |
-| Needed vs in stock         | `features/inventory/checkStock` and `StockCheckBadge`                                                            |
-| A create or edit form      | `components/form/FormDialog` with `TextField` and `SelectField`                                                  |
-| A choice from hundreds     | `components/form/ComboboxField` (a select with a search box; label + hint)                                       |
-| Confirming a deletion      | `components/ConfirmDialog` (an alert dialog, never a plain dialog)                                               |
-| A page still loading       | `components/states/PageSkeleton` (`table`, `dashboard`, `detail`, `form`)                                        |
-| Nothing to show            | `components/states/EmptyState`                                                                                   |
-| Failed to load             | `components/states/ErrorState` (says what failed, offers retry)                                                  |
-| A status word              | `components/StatusBadge` (`tone` overrides the word's lookup)                                                    |
-| Change over time           | `components/charts/TrendChart`                                                                                   |
-| A few categories compared  | `components/charts/ColumnChart`                                                                                  |
-| Parts of a whole           | `components/charts/ShareList` (labelled bars, not a donut)                                                       |
-| A figure that is not live  | `SampleBadge` on it, or `SampleDataNotice` for a whole page                                                      |
+| Need                        | Use                                                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Page-level buttons          | `components/PageActions` (title and description come from the table)                                             |
+| Any table                   | `components/data-table/DataTable`: the only table. See "Tables" below                                            |
+| Per-row actions             | `components/data-table/RowActions` (`ROW_ACTION_SEPARATOR` groups items)                                         |
+| A headline figure           | `components/StatCard` in a `StatCardGrid` (`trend` adds change and line; `detail` one line of what is behind it) |
+| A stock figure              | No unit, since stock is in pieces: `formatStock`, `productName` (warehouse `summary.ts`) name any other unit     |
+| An amount in several units  | `StatCard` `extra`: the unit holding most is the figure, the rest one quieter line under it; never add units     |
+| Things to do                | `components/TaskList` (status, title, detail, a button to where it is done; lays out by its own width)           |
+| A record's ID and status    | `components/DetailHeader` (progress goes in its band)                                                            |
+| A record's progress         | `components/StepTracker` (state in words above each step)                                                        |
+| History or recent events    | `components/ActivityTimeline` (`connected` or `compact`; role dots)                                              |
+| Needed vs in stock          | `features/inventory/checkStock` and `StockCheckBadge`                                                            |
+| A create or edit form       | `components/form/FormDialog` with `TextField` and `SelectField`                                                  |
+| A choice from hundreds      | `components/form/ComboboxField` (a select with a search box; label + hint)                                       |
+| Confirming a deletion       | `components/ConfirmDialog` (an alert dialog, never a plain dialog)                                               |
+| A page still loading        | `components/states/PageSkeleton` (`table`, `dashboard`, `detail`, `form`, `stockout`)                            |
+| Nothing to show             | `components/states/EmptyState`                                                                                   |
+| Failed to load              | `components/states/ErrorState` (says what failed, offers retry)                                                  |
+| A status word               | `components/StatusBadge` (`tone` overrides the word's lookup)                                                    |
+| Change over time            | `components/charts/TrendChart` (`kind="line"` for overlapping series, `reference` for a target)                  |
+| Periods or a few categories | `components/charts/ColumnChart` (one series, or several clustered or `stacked`)                                  |
+| Ranked categories           | `components/charts/BarChart` (horizontal, largest first, top 10 with the rest in focus mode; `highlight`)        |
+| A pipeline narrowing        | `components/charts/FunnelChart` (requested → approved → issued → received)                                       |
+| One rate against a target   | `components/charts/GaugeChart` (status fill, target tick, the status in words)                                   |
+| One whole split in parts    | `components/charts/SegmentedBar` (statuses, expiry bands; every share printed), or `ShareList`; never a donut    |
+| A number column as a chart  | `components/charts/DataBar` in a `DataTable` cell                                                                |
+| Report filters              | `features/analytics/FilterBar` with `useReportFilters` (period, district, type… in the address, with chips)      |
+| A PDF of the page           | `components/reports/PdfButton` (reads `data-kpi`, `data-visual`, `data-pdf-table` inside `targetRef`)            |
+| A figure that is not live   | `SampleBadge` on it, or `SampleDataNotice` for a whole page                                                      |
 
 ### Tables
 
@@ -208,10 +223,27 @@ primitive only to align it with the tokens above, and keep the edit small so
 
 ## Charts
 
+Report visuals follow Power BI's and Superset's conventions, so people who use those tools read them
+at once: every chart sits in `ChartCard`, whose header holds the title and description, the legend,
+and the visual's options (table view, focus mode, and a "More options" menu to download the data as
+CSV or the chart as a PNG). A chart has a loading skeleton, an empty state that says why in the
+report's words, and an error state that says the figures are not zero. Filters sit in one bar above
+every visual they scope (`FilterBar`), never inside a card.
+
 - Colour comes last, in the fixed `chart-1…5` order. A series keeps its colour when others are
   filtered out. Red is not a series colour; it is reserved for `destructive`.
+- States are not series: notification statuses, expiry bands and dispenser conditions take the
+  status tokens (with text in `var(--card)` on them, which contrasts in both themes), and the word is
+  always printed beside the colour. Conditional formatting (`BarChart` `highlight`) uses `warning`
+  for a bar under a guideline, and the footer says what orange means.
+- One y-axis only: two measures of different scale are two charts. Headline piece counts switch to
+  display units from 100,000 (`piecesValue`: "519.6K pcs") so a card's figure stays on one line;
+  the table view and downloads keep the exact figure.
+- Charts animate only without `prefers-reduced-motion`. A refetch keeps the previous figures on
+  screen (`keepPrevious`) instead of flashing the skeleton.
 - 2px lines, area fill at 10%, columns at most 24px wide with a 4px rounded top, solid hairline
-  grid, one y-axis.
+  grid, one y-axis as wide as its longest label (`width="auto"`, so "60,000" is never clipped).
+  The plot is 200px tall.
 - Two or more series get a legend; one series is named by the card title.
 - Every chart has a tooltip and a table view (`ChartCard` provides the switch), so no value is
   reachable only by hovering.
@@ -266,6 +298,15 @@ Target: WCAG 2.2 AA.
   "near expiry" for screen readers, stock bars sit beside "Above minimum" / "Below minimum".
 - **Target size.** Controls are at least 24px (`icon-xs`, `xs`). The 16px checkbox and radio are
   always inside their `<label>`, which is the target.
+
+## PDF reports
+
+`PdfButton` makes an A4 document of the part of the page in its `targetRef`: the ministry's seal and
+the title, the period and filters (read from `FilterBar`), the scope and data time, the headline
+figures (`StatCard` marks itself `data-kpi`), a picture of every `ChartCard` (`data-visual`, taken in
+the light theme whatever the viewer's), lists marked `data-pdf-table` (a `TaskList` does), any tables
+passed in (a report's records, on landscape pages when wide), the definitions, and page numbers.
+jsPDF and html-to-image load only when someone downloads.
 
 ## Print
 

@@ -6,7 +6,11 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { ActivityTimeline, type ActivityRole } from '@/components/ActivityTimeline';
+import {
+  ActivityTimeline,
+  ActivityTimelineSkeleton,
+  type ActivityRole,
+} from '@/components/ActivityTimeline';
 import { DetailHeader } from '@/components/DetailHeader';
 import { AuditHistoryLink } from '@/features/audit/links';
 import { DetailList } from '@/components/DetailList';
@@ -17,7 +21,6 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { WriteAction } from '@/components/WriteAction';
 import { useCurrentUser } from '@/features/auth/hooks';
@@ -119,7 +122,7 @@ function HotspotView({ hotspot }: { hotspot: HotspotDetail }) {
       });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="gap-section flex flex-col">
       <DetailHeader
         title={hotspotLabel(hotspot)}
         status={<StatusBadge status={hotspot.review_status} />}
@@ -151,8 +154,8 @@ function HotspotView({ hotspot }: { hotspot: HotspotDetail }) {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-6">
+      <div className="gap-section grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="gap-section flex min-w-0 flex-col">
           <Card>
             <CardHeader>
               <CardTitle>Comments</CardTitle>
@@ -185,7 +188,7 @@ function HotspotView({ hotspot }: { hotspot: HotspotDetail }) {
                   isRetrying={events.isRefetching}
                 />
               ) : events.isPending ? (
-                <Skeleton className="h-24 w-full" />
+                <ActivityTimelineSkeleton />
               ) : (
                 <ActivityTimeline entries={history(events.data)} />
               )}

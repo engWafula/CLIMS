@@ -101,10 +101,14 @@ func (h *Handler) CreateUser(c fiber.Ctx) error {
 	}
 	req.AccountInput.Assignment = req.FacilityAssignment
 	req.AccountInput.StoreID = req.StoreID
+	roleIDs := []string{req.RoleID}
 	if req.RoleIDs != nil {
-		return h.createUser(c, req.AccountInput, *req.RoleIDs)
+		roleIDs = *req.RoleIDs
 	}
-	return h.createUser(c, req.AccountInput, []string{req.RoleID})
+	if refused, err := h.refuseAdminChange(c, "", roleIDs); refused {
+		return err
+	}
+	return h.createUser(c, req.AccountInput, roleIDs)
 }
 
 func (h *Handler) AssignRole(c fiber.Ctx) error {
@@ -118,6 +122,9 @@ func (h *Handler) AssignRole(c fiber.Ctx) error {
 	}
 	if err := validator.Validate.Struct(req); err != nil {
 		return response.Error(c, 422, "validation failed", validator.FormatErrors(err))
+	}
+	if refused, err := h.refuseAdminChange(c, id, []string{req.RoleID}); refused {
+		return err
 	}
 	if err := h.Repo.UpdateUserAccess(c.Context(), id, &req.RoleID, nil); err != nil {
 		return accessError(c, err)
@@ -136,6 +143,9 @@ func (h *Handler) SetRoles(c fiber.Ctx) error {
 	}
 	if err := validator.Validate.Struct(req); err != nil {
 		return response.Error(c, 422, "validation failed", validator.FormatErrors(err))
+	}
+	if refused, err := h.refuseAdminChange(c, id, *req.RoleIDs); refused {
+		return err
 	}
 	if err := h.Repo.SetUserRoles(c.Context(), id, *req.RoleIDs); err != nil {
 		if errors.Is(err, ErrUnknownRole) {
@@ -157,6 +167,9 @@ func (h *Handler) SetStatus(c fiber.Ctx) error {
 	}
 	if err := validator.Validate.Struct(req); err != nil {
 		return response.Error(c, 422, "validation failed", validator.FormatErrors(err))
+	}
+	if refused, err := h.refuseAdminChange(c, id, nil); refused {
+		return err
 	}
 	if err := h.Repo.UpdateUserAccess(c.Context(), id, nil, &req.Status); err != nil {
 		return accessError(c, err)
@@ -184,6 +197,9 @@ func (h *Handler) SetStore(c fiber.Ctx) error {
 			return response.Error(c, 422, "validation failed", map[string]string{"store_id": "Choose a valid item from the list."})
 		}
 		storeID = &parsed
+	}
+	if refused, refuseErr := h.refuseAdminChange(c, id, nil); refused {
+		return refuseErr
 	}
 	switch err = h.Repo.SetUserStore(c.Context(), id, storeID); {
 	case errors.Is(err, pgx.ErrNoRows):

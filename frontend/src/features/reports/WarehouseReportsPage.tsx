@@ -11,7 +11,7 @@ import { REPORT_PATHS } from './status';
 export default function WarehouseReportsPage() {
   const { store, href } = useWarehouseStore();
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <StoreSwitch
         store={store}
         hrefFor={(code) => withStore(REPORT_PATHS.list('warehouse'), code)}

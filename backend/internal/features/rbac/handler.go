@@ -54,7 +54,7 @@ func accessError(c fiber.Ctx, err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return response.Error(c, 404, "user or role not found", nil)
 	}
-	if errors.Is(err, ErrAdminRole) {
+	if errors.Is(err, ErrAdminRole) || errors.Is(err, ErrRegisteredRole) {
 		return response.Error(c, 409, err.Error(), nil)
 	}
 	if errors.Is(err, ErrUnknownPermission) {

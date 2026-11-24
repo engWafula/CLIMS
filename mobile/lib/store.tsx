@@ -79,6 +79,11 @@ interface StoreCtx {
   loadMoreHotspots: (offset: number) => Promise<PageResult>;
   /** Replace the phone's copies of API orders with a fresh list from GET /orders. */
   syncApiOrders: (orders: DomainState["orders"]) => void;
+  /**
+   * Replace the phone's copy of one API order with a fresher one (from toLocalOrder), e.g. when its
+   * page loads, so lists show its current status. An order the phone does not hold is left out.
+   */
+  updateApiOrder: (order: DomainState["orders"][number]) => void;
   /** Save an action to the outbox even when online, e.g. after a request failed on the network. */
   queue: (type: ActionType, payload: any, label: string) => void;
   /** Mark every notification read: local ones up to now, and the API's on the server. */
@@ -111,6 +116,22 @@ const failure = (err: unknown): PageResult => ({
 });
 
 const Ctx = createContext<StoreCtx | null>(null);
+
+/**
+ * Whether a queued send may work later, so it stays in the outbox: no answer, a timeout, a busy or
+ * failing server (a restart behind the gateway answers 502), or a session that needs signing in
+ * again. Only a definite refusal (400, 403, 404, 409, 422…) drops it with a notice.
+ */
+function retryLater(err: unknown): boolean {
+  if (isNetworkError(err)) return true;
+  if (err instanceof Error && err.name === "SessionEndedError") return true;
+  if (!isAxiosError(err)) return false;
+  const status = err.response?.status ?? 0;
+  return status === 401 || status === 408 || status === 429 || status >= 500;
+}
+
+/** How often a waiting outbox is retried while the phone thinks it is online. */
+const OUTBOX_RETRY_MS = 60_000;
 
 /** How often the inbox checks the API for new notifications while the app is open. */
 const NOTICE_POLL_MS = 60_000;
@@ -385,7 +406,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               apply(drop(ref.current), it.type, { hotspot }, it.role, me.name, Date.now()).next,
             );
           } catch (err) {
-            if (isNetworkError(err)) break;
+            if (retryLater(err)) break;
             // Refused (duplicate name, mismatched place…): tell the VHT so they can map it again.
             const cur = drop(ref.current);
             const now = Date.now();
@@ -418,7 +439,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             );
             commit(apply(drop(ref.current), it.type, { order }, it.role, me.name, Date.now()).next);
           } catch (err) {
-            if (isNetworkError(err)) break;
+            if (retryLater(err)) break;
             const cur = drop(ref.current);
             const now = Date.now();
             commit({
@@ -446,7 +467,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const order = toLocalOrder(d, me.name, "Hotspot manager");
             commit(apply(drop(ref.current), it.type, { order }, it.role, me.name, Date.now()).next);
           } catch (err) {
-            if (isNetworkError(err)) break;
+            if (retryLater(err)) break;
             const cur = drop(ref.current);
             const now = Date.now();
             commit({
@@ -488,6 +509,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }),
     [flush],
   );
+
+  // NetInfo can report "connected" on a link where every request times out, and a send can stop on a
+  // server error, so neither brings a connectivity change. A waiting outbox is also retried every
+  // minute and whenever the app comes back to the front.
+  const waiting = s.outbox.length > 0;
+  useEffect(() => {
+    if (!ready || offline || !waiting) return;
+    const timer = setInterval(flush, OUTBOX_RETRY_MS);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") flush();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [ready, offline, waiting, flush]);
 
   const queue = useCallback(
     (type: ActionType, payload: any, label: string) => {
@@ -662,6 +699,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [commit],
   );
 
+  const updateApiOrder = useCallback(
+    (order: DomainState["orders"][number]) => {
+      const cur = ref.current;
+      if (!cur.orders.some((o) => o.id === order.id)) return;
+      commit({ ...cur, orders: cur.orders.map((o) => (o.id === order.id ? order : o)) });
+    },
+    [commit],
+  );
+
   const reset = useCallback(() => commit(createSeed(personas)), [commit, personas]);
 
   const value = useMemo(
@@ -674,6 +720,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       refreshHotspots,
       loadMoreHotspots,
       syncApiOrders,
+      updateApiOrder,
       markRead,
       readNotice,
       refreshNotices,
@@ -689,6 +736,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       refreshHotspots,
       loadMoreHotspots,
       syncApiOrders,
+      updateApiOrder,
       markRead,
       readNotice,
       refreshNotices,

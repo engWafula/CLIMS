@@ -119,12 +119,12 @@ function OrderForm({ warehouses, preselected }: OrderFormProps) {
       onSubmit={submit}
       noValidate
       aria-labelledby="new-order-heading"
-      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]"
+      className="gap-section grid lg:grid-cols-[minmax(0,1fr)_20rem]"
     >
       <h2 id="new-order-heading" className="sr-only">
         Order stock from a warehouse
       </h2>
-      <div className="flex min-w-0 flex-col gap-6">
+      <div className="gap-section flex min-w-0 flex-col">
         <Card>
           <CardHeader>
             <CardTitle asChild>

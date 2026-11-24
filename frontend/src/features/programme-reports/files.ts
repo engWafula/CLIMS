@@ -39,6 +39,24 @@ export function displayCell(key: string, value: ReportCell): string {
   return value;
 }
 
+/**
+ * A cell for a printed document: as on screen, except times are absolute
+ * ("24 Nov 2026, 06:38" rather than "Today, 06:38"), since paper outlives the day.
+ */
+export function printCell(key: string, value: ReportCell): string {
+  if (typeof value === 'string' && ISO_TIMESTAMP.test(value) && !MIDNIGHT_UTC.test(value)) {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Kampala',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
+  }
+  return displayCell(key, value);
+}
+
 function save(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

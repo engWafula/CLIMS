@@ -54,8 +54,14 @@ export function useReportCoverage(period: string) {
   );
 }
 
-export function useReport(id: string) {
-  return useApiQuery(reportKeys.report(id), (http, signal) => getReport(http, id, signal));
+export function useReport(id: string, editing = false) {
+  return useApiQuery(
+    reportKeys.report(id),
+    (http, signal) => getReport(http, id, signal),
+    editing
+      ? { refetchInterval: false, refetchOnWindowFocus: false, refetchOnReconnect: false }
+      : { refetchInterval: 60_000 },
+  );
 }
 
 /** Puts the server's copy of a report straight into the cache, then refetches everything about reports. */

@@ -2,7 +2,7 @@
 
 [Module architecture](README.md)
 
-A village health team member (VHT) submits a hotspot they identified. The district condom focal person (DCFP, role `dfcp`) is notified, verifies the details and activates the hotspot, comments on any issues, or rejects it with a reason. A DCFP can later deactivate and reactivate a hotspot.
+A village health team member (VHT) submits a hotspot they identified, in the mobile app (VHTs have no web access). The district condom focal person (DCFP, role `dfcp`) is notified, verifies the details and activates the hotspot, comments on any issues, or rejects it with a reason, on the web at `/dcfp/hotspots`. A DCFP can later deactivate and reactivate a hotspot.
 
 ```mermaid
 flowchart LR

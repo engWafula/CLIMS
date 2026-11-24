@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"clims-backend/internal/features/stock"
 )
 
 // testBatchEdit runs after the store summary, when the district role may manage stock: the warehouse
@@ -19,7 +21,7 @@ func testBatchEdit(t *testing.T, pool *pgxpool.Pool,
 	ctx := context.Background()
 	year := time.Now().AddDate(1, 0, 0).Format(time.DateOnly)
 	later := time.Now().AddDate(2, 0, 0).Format(time.DateOnly)
-	today := time.Now().UTC().Format(time.DateOnly)
+	today := time.Now().In(stock.Kampala).Format(time.DateOnly) // the store summary counts Kampala days
 	scalar := func(query string, args ...any) int64 {
 		t.Helper()
 		var n int64

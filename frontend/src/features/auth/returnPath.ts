@@ -14,6 +14,16 @@ export function safeReturnPath(candidate: unknown, fallback: string, signInPath:
   for (let index = 0; index < candidate.length; index += 1) {
     if (candidate.charCodeAt(index) < 0x20) return fallback;
   }
-  if (candidate === signInPath || candidate.startsWith(`${signInPath}?`)) return fallback;
+  // The URL parser normalizes dot segments and backslashes before routing.
+  const base = 'https://clims.invalid';
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate, base);
+  } catch {
+    return fallback;
+  }
+  if (parsed.origin !== base) return fallback;
+  const path = parsed.pathname.replace(/\/+$/, '') || '/';
+  if (path === signInPath) return fallback;
   return candidate;
 }

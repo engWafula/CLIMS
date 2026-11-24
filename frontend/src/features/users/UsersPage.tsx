@@ -277,7 +277,7 @@ export default function UsersPage() {
   const statValue = (value: number | undefined) => formatNumber(value ?? 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <PageActions>
         <ExportButton name="Users" columns={columns} rows={rows} />
         {addButton}

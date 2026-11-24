@@ -112,18 +112,29 @@ func (r *Repository) RevokeOIDCSessions(ctx context.Context, issuer, subject str
 	var ended int64
 	err := pgx.BeginTxFunc(ctx, r.DB, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		// clock_timestamp() is read after the row lock is held, not when the transaction began.
-		if _, err := tx.Exec(ctx, `UPDATE users u SET sessions_revoked_at = clock_timestamp()
+		var userID string
+		err := tx.QueryRow(ctx, `UPDATE users u SET sessions_revoked_at = clock_timestamp()
 			FROM user_oidc_identities identity
-			WHERE identity.issuer = $1 AND identity.subject = $2 AND u.id = identity.user_id`, issuer, subject); err != nil {
+			WHERE identity.issuer = $1 AND identity.subject = $2 AND u.id = identity.user_id
+			RETURNING u.id::text`, issuer, subject).Scan(&userID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // Unlinked: no account, so no sessions to end.
+		}
+		if err != nil {
 			return err
 		}
 		// A new statement sees sessions committed by a sign-in that held the lock before this revoke.
-		tag, err := tx.Exec(ctx, `UPDATE user_sessions s SET revoked_at = CURRENT_TIMESTAMP
-			FROM user_oidc_identities identity
-			WHERE identity.issuer = $1 AND identity.subject = $2 AND s.user_id = identity.user_id
-				AND s.revoked_at IS NULL`, issuer, subject)
+		tag, err := tx.Exec(ctx, `UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP
+			WHERE user_id = $1 AND revoked_at IS NULL`, userID)
+		if err != nil {
+			return err
+		}
 		ended = tag.RowsAffected()
-		return err
+		// Recorded like an administrator's "sign out everywhere", so the account's history shows it.
+		return r.audit.Record(ctx, tx, audit.Entry{Action: "user.sessions_revoked",
+			Target: &audit.Subject{Type: "user", ID: userID},
+			Details: map[string]any{"source": "identity_sync", "sessions_revoked": ended,
+				"issuer": issuer, "subject": subject}})
 	})
 	return ended, err
 }

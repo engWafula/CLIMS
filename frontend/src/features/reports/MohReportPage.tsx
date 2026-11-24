@@ -27,7 +27,7 @@ export default function MohReportPage() {
   const { id } = useParams<{ id: string }>();
   const report = useReport(id);
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <SampleDataNotice subject="The report figures" />
       <RecordView query={report} layout="detail" noun="report" back={BACK}>
         {(data) =>

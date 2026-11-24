@@ -4996,6 +4996,173 @@
         }
       }
     },
+    "/api/v1/reports/trends": {
+      "get": {
+        "tags": ["Reports"],
+        "operationId": "getReportTrends",
+        "summary": "Report measures per day, week or month",
+        "description": "Requires reports:read. Notifications (by the day raised, followed as a cohort), district requests to national warehouses (by the day placed), district deliveries to hotspots and stock movements, per bucket over the period, with the same scope and filters as their reports, so a trend adds up to its report total. Weeks start on Monday and months on the 1st, in Kampala time. Without from, the period is the last six calendar months to date.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "First Kampala day; defaults to the first of the month five months before to.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Last Kampala day, included; defaults to today.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "description": "day, week or month; defaults to days up to a month, weeks up to about a quarter, months beyond. At most 400 buckets.",
+            "schema": {
+              "type": "string",
+              "enum": ["day", "week", "month"]
+            }
+          },
+          {
+            "name": "district_id",
+            "in": "query",
+            "description": "One district.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "hot_spot_id",
+            "in": "query",
+            "description": "One hotspot (notifications and deliveries).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "warehouse_store_id",
+            "in": "query",
+            "description": "One national warehouse (requests).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "store_id",
+            "in": "query",
+            "description": "One store (requests and stock movements).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "store_type",
+            "in": "query",
+            "description": "national or district (stock movements).",
+            "schema": {
+              "type": "string",
+              "enum": ["national", "district"]
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "male or female.",
+            "schema": {
+              "type": "string",
+              "enum": ["male", "female"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrendReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/hotspots": {
+      "get": {
+        "tags": ["Reports"],
+        "operationId": "getHotspotCoverage",
+        "summary": "Hotspot coverage by region, district, venue type and dispenser",
+        "description": "Requires reports:read. Every hotspot for national users (orders:all_stores or hotspots:all_districts), else those of the district the user works in; an account with no district gets 403. Counts by review status, dispenser and map position, and hotspots waiting on an open stockout request, with registrations per month over the last twelve months.",
+        "parameters": [
+          {
+            "name": "region_id",
+            "in": "query",
+            "description": "One region.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "district_id",
+            "in": "query",
+            "description": "One district.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotspotReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/reports/export/{report}": {
       "get": {
         "tags": ["Reports"],
@@ -5702,6 +5869,7 @@
               "reviewed",
               "on_hold",
               "confirmed",
+              "rejected",
               "dispatched",
               "received",
               "delivered"
@@ -9321,6 +9489,10 @@
             "type": "integer",
             "format": "int64",
             "description": "Quality issue: requests not in the product's catalogue unit, or for a product without pieces per unit, left out of the piece totals."
+          },
+          "awaiting_unit": {
+            "type": "integer",
+            "description": "Requests naming only a category and a number; the warehouse picks the product, and its unit, at review. Left out of the piece totals until then; not a quality issue."
           }
         }
       },
@@ -9405,6 +9577,25 @@
               "oldest_pending_hours": {
                 "type": "number",
                 "nullable": true
+              }
+            }
+          },
+          "dispatches_without_request": {
+            "type": "object",
+            "description": "Stock warehouses sent to districts in the period without a request (district dispatches); not part of the request totals or the fulfilment rate.",
+            "properties": {
+              "dispatches": {
+                "type": "integer"
+              },
+              "issued_pieces": {
+                "type": "integer"
+              },
+              "received_pieces": {
+                "type": "integer"
+              },
+              "awaiting_receipt": {
+                "type": "integer",
+                "description": "Dispatches the district has not received yet."
               }
             }
           }
@@ -11277,6 +11468,267 @@
             "maxLength": 1000,
             "description": "Why the district will not supply the request. Trimmed; the hotspot reads it.",
             "example": "The district store has no male condoms until NMS delivers."
+          }
+        }
+      },
+      "TrendBucket": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "description": "First Kampala day of the bucket; the first and last buckets may be partial."
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "raised": {
+                "type": "integer"
+              },
+              "fulfilled": {
+                "type": "integer"
+              },
+              "rejected": {
+                "type": "integer"
+              },
+              "fulfilment_rate": {
+                "type": "number",
+                "nullable": true
+              },
+              "median_response_hours": {
+                "type": "number",
+                "nullable": true
+              }
+            },
+            "description": "Notifications raised in the bucket, followed as a cohort."
+          },
+          "requests": {
+            "type": "object",
+            "properties": {
+              "requests": {
+                "type": "integer"
+              },
+              "requested_pieces": {
+                "type": "integer"
+              },
+              "approved_pieces": {
+                "type": "integer"
+              },
+              "issued_pieces": {
+                "type": "integer"
+              },
+              "acknowledged_pieces": {
+                "type": "integer"
+              }
+            },
+            "description": "District requests to national warehouses raised in the bucket."
+          },
+          "deliveries": {
+            "type": "object",
+            "properties": {
+              "deliveries": {
+                "type": "integer"
+              },
+              "male_pieces": {
+                "type": "integer"
+              },
+              "female_pieces": {
+                "type": "integer"
+              },
+              "acknowledged_pieces": {
+                "type": "integer"
+              }
+            },
+            "description": "District deliveries to hotspots recorded in the bucket."
+          },
+          "stock": {
+            "type": "object",
+            "properties": {
+              "received_pieces": {
+                "type": "integer"
+              },
+              "dispatched_pieces": {
+                "type": "integer"
+              },
+              "district_received_pieces": {
+                "type": "integer"
+              },
+              "delivered_pieces": {
+                "type": "integer"
+              },
+              "adjusted_pieces": {
+                "type": "integer"
+              }
+            },
+            "description": "Stock movements at the stores the user may see, in pieces; quantities in another unit than the catalogue unit are left out."
+          }
+        }
+      },
+      "TrendReport": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          },
+          "interval": {
+            "type": "string",
+            "enum": ["day", "week", "month"]
+          },
+          "data_updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrendBucket"
+            }
+          }
+        }
+      },
+      "HotspotCounts": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "integer"
+          },
+          "submitted": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "integer"
+          },
+          "deactivated": {
+            "type": "integer"
+          },
+          "with_dispenser": {
+            "type": "integer"
+          },
+          "located": {
+            "type": "integer"
+          },
+          "open_requests": {
+            "type": "integer"
+          }
+        }
+      },
+      "HotspotGroup": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/HotspotCounts"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "HotspotReport": {
+        "type": "object",
+        "properties": {
+          "data_updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "$ref": "#/components/schemas/HotspotCounts"
+          },
+          "by_region": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotspotGroup"
+            }
+          },
+          "by_district": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotspotGroup"
+            }
+          },
+          "by_type": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotspotGroup"
+            },
+            "description": "Venue types sorted into the Condom Distribution Guidelines 2022 pick-point types; \"Not recorded\" when the type holds no venue (legacy \"new\"/\"old\")."
+          },
+          "dispensers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotspotGroup"
+            },
+            "description": "Dispenser condition sorted into Working, Needs repair, Empty, Too few dispensers, Not installed and Not recorded."
+          },
+          "registrations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "month": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                "registered": {
+                  "type": "integer"
+                },
+                "activated": {
+                  "type": "integer"
+                }
+              }
+            },
+            "description": "The last twelve Kampala months, oldest first."
+          }
+        }
+      },
+      "TrendReportResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TrendReport"
+          }
+        }
+      },
+      "HotspotReportResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HotspotReport"
           }
         }
       }

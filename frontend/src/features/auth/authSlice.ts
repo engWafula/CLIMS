@@ -4,15 +4,11 @@ import type { AuthUser, RefreshedTokens, Session } from './session';
 
 export interface AuthState {
   session: Session | null;
-  /**
-   * True when the last session ended because the user signed out. Sign-in then
-   * starts fresh instead of returning to the page they left, which belonged to
-   * them and may not be open to whoever signs in next.
-   */
-  signedOut?: boolean;
+  /** Explicit sign-out should not carry one person's page into the next sign-in. */
+  signedOut: boolean;
 }
 
-const initialState: AuthState = { session: null };
+const initialState: AuthState = { session: null, signedOut: false };
 
 /**
  * Holds the current session. Reducers stay pure: persisting to storage is the
@@ -26,10 +22,16 @@ export const authSlice = createSlice({
       state.session = action.payload;
       state.signedOut = false;
     },
-    /** Pass `{ signedOut: true }` when the user chose to sign out (not an expiry). */
-    sessionEnded(state, action: PayloadAction<{ signedOut: boolean } | undefined>) {
+    sessionEnded(state) {
       state.session = null;
-      state.signedOut = action.payload?.signedOut ?? false;
+      state.signedOut = false;
+    },
+    sessionSignedOut(state) {
+      state.session = null;
+      state.signedOut = true;
+    },
+    signOutAcknowledged(state) {
+      state.signedOut = false;
     },
     /** Swaps in renewed tokens; the user is unchanged. Ignored once signed out. */
     tokensRefreshed(state, action: PayloadAction<RefreshedTokens>) {
@@ -40,10 +42,11 @@ export const authSlice = createSlice({
     /**
      * Replaces the user with the server's current copy (`GET /auth/me`), so a
      * role or permission change made by an administrator applies without
-     * signing in again. Ignored once signed out.
+     * signing in again. Ignored once signed out, and when the copy is another
+     * account's (a response cached before another tab signed in as someone else).
      */
     userRefreshed(state, action: PayloadAction<AuthUser>) {
-      if (!state.session) return;
+      if (state.session?.user.id !== action.payload.id) return;
       state.session.user = action.payload;
     },
   },
@@ -51,10 +54,17 @@ export const authSlice = createSlice({
     selectSession: (state) => state.session,
     selectCurrentUser: (state) => state.session?.user ?? null,
     selectToken: (state) => state.session?.token ?? null,
-    selectSignedOut: (state) => state.signedOut === true,
+    selectSignedOut: (state) => state.signedOut,
   },
 });
 
-export const { sessionStarted, sessionEnded, tokensRefreshed, userRefreshed } = authSlice.actions;
+export const {
+  sessionStarted,
+  sessionEnded,
+  sessionSignedOut,
+  signOutAcknowledged,
+  tokensRefreshed,
+  userRefreshed,
+} = authSlice.actions;
 export const { selectSession, selectCurrentUser, selectToken, selectSignedOut } =
   authSlice.selectors;

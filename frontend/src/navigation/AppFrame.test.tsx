@@ -1,6 +1,7 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { sessionStarted, userRefreshed } from '@/features/auth/authSlice';
 import { AppUnderTest } from '@/test/AppUnderTest';
 import type { RecordedRequest } from '@/test/fakeAdapter';
 import { testRouter } from '@/test/navigation';
@@ -41,6 +42,40 @@ function renderAs(route: string, roleNames: string[], permissions: string[] = []
 }
 
 describe('role-based access in the shell', () => {
+  it('moves to the new account’s home when another tab changes the signed-in user', async () => {
+    const { store } = renderAs('/moh/users', ['admin'], ['users:read']);
+    await screen.findByRole('heading', { name: 'User management' });
+    const next = sessionWith(['orders:read'], ['jms']);
+    act(() => {
+      store.dispatch(
+        sessionStarted({
+          ...next,
+          token: 'another-token',
+          user: { ...next.user, id: 'other-user' },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(testRouter.location).toBe('/warehouse');
+    });
+  });
+
+  it('moves home when a role change removes the current workspace', async () => {
+    const { store, requests } = renderAs('/moh/users', ['admin'], ['users:read']);
+    await screen.findByRole('heading', { name: 'User management' });
+    await waitFor(() => {
+      expect(requests.some((request) => request.url === '/auth/me')).toBe(true);
+    });
+    const user = store.getState().auth.session?.user;
+    if (!user) throw new Error('Expected a signed-in user');
+    act(() => {
+      store.dispatch(userRefreshed({ ...user, roleNames: ['jms'], permissions: ['orders:read'] }));
+    });
+    await waitFor(() => {
+      expect(testRouter.location).toBe('/warehouse');
+    });
+  });
+
   it('starts a JMS user in the warehouse workspace instead of MOH', async () => {
     renderAs('/moh', ['jms'], ['orders:read']);
 
@@ -88,14 +123,20 @@ describe('role-based access in the shell', () => {
     expect(screen.queryByRole('link', { name: /New request/ })).not.toBeInTheDocument();
   });
 
-  it('points a hotspot manager to the mobile app', async () => {
-    renderAs('/moh', ['hotspot manager']);
+  // A session kept from before (or a role changed since sign-in) opens no page either.
+  it.each([
+    ['hotspot manager', 'Hotspot manager', '/moh'],
+    ['vht', 'VHT', '/vht'],
+    ['delivery agent', 'Delivery agent', '/dcfp'],
+  ])('points a %s to the mobile app', async (role, label, route) => {
+    renderAs(route, [role]);
 
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Use the CLIMS mobile app' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Your role \(Hotspot manager\)/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Your role \\(${label}\\)`))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
   });
 
   it('tells a registered user with no web role what to ask for', async () => {
@@ -119,6 +160,12 @@ describe('role-based access in the shell', () => {
       'href',
       '/moh/users/roles',
     );
+  });
+
+  it('does not render a detail when its parent list requires a missing permission', async () => {
+    const { requests } = renderAs('/dcfp/hotspots/secret', ['dfcp'], ['orders:read']);
+    expect(await screen.findByText('You cannot open Hotspots')).toBeInTheDocument();
+    expect(requests.some((request) => request.url === '/hotspots/secret')).toBe(false);
   });
 
   it('warns a role that holds no permissions at all', async () => {

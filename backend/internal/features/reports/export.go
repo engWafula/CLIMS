@@ -24,6 +24,8 @@ var errTooManyRows = fmt.Errorf("the report has more than %d rows; narrow the fi
 // errInvalid marks a filter the user got wrong (400), as opposed to a failure on our side (500).
 type errInvalid struct{ error }
 
+func (e errInvalid) Unwrap() error { return e.error }
+
 // Column is one exported column: the row field and its plain-language header.
 type Column struct {
 	Key    string `json:"key"`

@@ -60,6 +60,39 @@ test.describe('signed in', () => {
     await expect(page).toHaveURL(/\/sign-in/);
   });
 
+  test('signs in as another role after an administrator signs out', async ({ page }) => {
+    await open(page, '/moh/users', 'User management');
+    const token = await page.evaluate(() => {
+      const session = localStorage.getItem('clims.session');
+      if (!session) throw new Error('Expected the administrator session');
+      return (JSON.parse(session) as { token: string }).token;
+    });
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL(/\/sign-in$/);
+
+    const district = {
+      id: 'district-user',
+      username: 'district',
+      roles: [{ id: 'district-role', name: 'dfcp', permissions: ['orders:read'] }],
+    };
+    await page.route('**/api/v1/auth/login', (route) =>
+      route.fulfill({
+        json: { success: true, data: { token, user: district } },
+      }),
+    );
+    await page.route('**/api/v1/auth/me', (route) =>
+      route.fulfill({
+        json: { success: true, data: district },
+      }),
+    );
+    await page.getByLabel('Email').fill('district');
+    await page.getByLabel('Password', { exact: true }).fill('password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/dcfp$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'District dashboard' })).toBeVisible();
+  });
+
   test('signs another device out from the account menu', async ({ page }) => {
     await open(page, '/moh', 'MOH dashboard');
     await page.getByRole('button', { name: /account menu/i }).click();

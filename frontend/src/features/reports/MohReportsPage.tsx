@@ -99,7 +99,7 @@ export default function MohReportsPage() {
   const [newest] = periods.data;
   if (!newest) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="gap-section flex flex-col">
         <SampleDataNotice subject="The reports" />
         <div className="bg-card rounded-card border">
           <EmptyState
@@ -238,7 +238,7 @@ function Submissions({ periods, period, type, status }: SubmissionsProps) {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <PageActions>
         <ExportButton name={`Monthly reports ${month}`} columns={exportColumns} rows={rows} />
       </PageActions>

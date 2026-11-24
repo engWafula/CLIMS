@@ -1,13 +1,19 @@
 'use client';
 
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageLoader } from '@/components/states/PageLoader';
 import { applyTheme, loadTheme } from '@/components/theme/theme';
 import { ConfigError, parseConfig, type AppConfig } from '@/config/env';
-import { selectSession, selectToken, sessionEnded } from '@/features/auth/authSlice';
+import {
+  selectCurrentUser,
+  selectSession,
+  selectToken,
+  sessionEnded,
+} from '@/features/auth/authSlice';
 import { createSessionRefresher } from '@/features/auth/refresh';
 import { createSessionStore } from '@/features/auth/session';
 import { createHttpClient, type HttpClient } from '@/lib/api';
@@ -55,14 +61,35 @@ function createApp(): App {
     },
   });
 
+  // Cached responses belong to the user who fetched them. Signing out or in here
+  // clears them too, but another tab's sign-out or sign-in only reaches this one
+  // through the store.
+  let cachedFor = selectCurrentUser(store.getState())?.id ?? null;
+  let sessionGeneration = 0;
+  store.subscribe(() => {
+    const userId = selectCurrentUser(store.getState())?.id ?? null;
+    if (userId === cachedFor) return;
+    sessionGeneration += 1;
+    if (cachedFor !== null) queryClient.clear();
+    cachedFor = userId;
+  });
+
   const http: HttpClient = createHttpClient({
     baseUrl: config.apiBaseUrl,
     getToken: () => selectToken(store.getState()),
+    getSessionGeneration: () => sessionGeneration,
     // Access tokens last minutes; an expired one is renewed quietly before giving up.
-    refresh: createSessionRefresher(store, () => http),
-    onUnauthorized: () => {
+    refresh: createSessionRefresher(
+      store,
+      () => http,
+      () => sessionStore.load(),
+    ),
+    onUnauthorized: (rejectedToken) => {
+      const session = selectSession(store.getState());
       // Several requests can be rejected together; only the first ends the session.
-      if (!selectSession(store.getState())) return;
+      if (!session) return;
+      // Sent with a token the session has since replaced: the newer one still works.
+      if (rejectedToken !== null && rejectedToken !== session.token) return;
       store.dispatch(sessionEnded());
       queryClient.clear();
       toast.info('Your session has expired. Sign in again.');
@@ -104,12 +131,13 @@ interface AppRootProps {
  * signed in, and showing the wrong screen when the guess is wrong.
  */
 export function AppRoot({ children }: AppRootProps) {
+  const pathname = usePathname();
   const isInBrowser = useSyncExternalStore(
     subscribeToNothing,
     () => true,
     () => false,
   );
-  if (!isInBrowser) return <PageLoader />;
+  if (!isInBrowser) return <PageLoader pathname={pathname} />;
   return <BrowserApp>{children}</BrowserApp>;
 }
 

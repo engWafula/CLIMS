@@ -1,6 +1,6 @@
 import { combineSlices, configureStore } from '@reduxjs/toolkit';
 
-import { authSlice, sessionEnded, sessionStarted } from '@/features/auth/authSlice';
+import { authSlice, sessionSignedOut, sessionStarted } from '@/features/auth/authSlice';
 import type { SessionStore } from '@/features/auth/session';
 
 const rootReducer = combineSlices(authSlice);
@@ -18,7 +18,7 @@ interface CreateAppStoreOptions {
 export function createAppStore({ sessionStore }: CreateAppStoreOptions) {
   const store = configureStore({
     reducer: rootReducer,
-    preloadedState: { auth: { session: sessionStore.load() } },
+    preloadedState: { auth: { session: sessionStore.load(), signedOut: false } },
   });
 
   // Mirror the session to storage whenever it changes, and only then.
@@ -51,7 +51,7 @@ export function syncSessionAcrossTabs(
     // `key` is null when the whole storage area was cleared.
     if (event.key !== null && event.key !== sessionStore.key) return;
     const session = sessionStore.load();
-    store.dispatch(session ? sessionStarted(session) : sessionEnded());
+    store.dispatch(session ? sessionStarted(session) : sessionSignedOut());
   };
   target.addEventListener('storage', onStorage);
   return () => {

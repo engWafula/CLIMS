@@ -198,7 +198,7 @@ export default function ProductsPage() {
 
   const filtered = filter.value !== 'all';
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <PageActions>
         <ExportButton name="Products" columns={columns} rows={rows} />
         {addButton}

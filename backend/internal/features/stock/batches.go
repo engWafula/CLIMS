@@ -24,12 +24,12 @@ var (
 	ErrBatchShort = errors.New("the batch holds less than the quantity to remove")
 )
 
-// kampala is the reporting time zone; Uganda keeps East Africa Time all year.
-var kampala = time.FixedZone("EAT", 3*60*60)
+// Kampala is the reporting time zone; Uganda keeps East Africa Time all year.
+var Kampala = time.FixedZone("EAT", 3*60*60)
 
 // Today is the current calendar date in Kampala, as a UTC midnight for date comparisons.
 func Today(now time.Time) time.Time {
-	local := now.In(kampala)
+	local := now.In(Kampala)
 	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC)
 }
 

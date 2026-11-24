@@ -5,6 +5,17 @@ import type { NavCounts } from '@/navigation/navigation';
 import type { Order, OrderStatus, StockoutReport, Warehouse } from './api';
 
 /** Paths of the DCFP screens. */
+/**
+ * Where a list of requests or orders links to, so the same screens serve the
+ * DCFP's own district and MOH's national, read-only view of every district.
+ */
+export interface OrderLinks {
+  list: string;
+  detail: (id: string) => string;
+  /** Every district's records: the list adds a District column and actions to raise orders are left out. */
+  national?: boolean;
+}
+
 export const DCFP_PATHS = {
   dashboard: '/dcfp',
   stockouts: '/dcfp/stockouts',
@@ -350,4 +361,29 @@ export function dcfpTasks(
     });
   }
   return tasks;
+}
+
+/** Who the list or record is shown to: the DCFP's own district, or MOH's national read-only view. */
+export type OrderScope = 'district' | 'national';
+
+/** Where hotspot stockout requests link to, by scope. */
+export function stockoutLinks(scope: OrderScope = 'district'): OrderLinks {
+  return scope === 'national'
+    ? {
+        list: '/moh/orders',
+        detail: (id) => `/moh/orders/${encodeURIComponent(id)}`,
+        national: true,
+      }
+    : { list: DCFP_PATHS.stockouts, detail: DCFP_PATHS.stockout };
+}
+
+/** Where district orders to the warehouses link to, by scope. */
+export function orderLinks(scope: OrderScope = 'district'): OrderLinks {
+  return scope === 'national'
+    ? {
+        list: '/moh/orders/warehouse',
+        detail: (id) => `/moh/orders/warehouse/${encodeURIComponent(id)}`,
+        national: true,
+      }
+    : { list: DCFP_PATHS.orders, detail: DCFP_PATHS.order };
 }

@@ -6,6 +6,32 @@ Notable changes to CLIMS. The format follows [Keep a Changelog](https://keepacha
 
 ### Added
 
+- **Reports and analytics for every user.** The programme reports page becomes a report section in the
+  manner of Power BI and Superset: an overview, stockout requests, warehouse orders, stock and coverage,
+  expiry risk, expiry exceptions, hotspot coverage and HMIS 105, each with headline figures, charts
+  (columns, ranked bars, funnel, gauge, segmented bars, data bars) and the export table. Every chart
+  switches to a table, opens in focus mode and downloads as CSV or PNG. Filters (period presets,
+  interval, region, district, warehouse, store type, condom type, status, expiry band) live in the
+  address with removable chips and an "All filters" pane. Every dashboard and report downloads as a
+  PDF with the ministry's seal, the filters it covers, the figures, the charts, the records and the
+  definitions. New endpoints: `GET /api/v1/reports/trends` (measures per day, week or month) and
+  `GET /api/v1/reports/hotspots` (hotspot coverage).
+- **The MOH dashboard reads real data.** It is built from the reports API (it used `/national/*`
+  endpoints that never existed and showed sample data), with a "Needs watching" list. The DCFP and
+  warehouse dashboards add a performance section with the same filters and PDF, and the warehouse's
+  sample charts are replaced by its real dispatches and orders.
+- **MOH oversees, read-only.** Migration 39 gives the `moh` role every read permission and no write
+  permission (it held only `catalogue:manage`, so MOH accounts could open almost nothing), and NMS and
+  JMS `reports:read`. The web app opens every workspace read-only for MOH, whose Orders tabs now show
+  every district's real hotspot requests and district orders.
+
+### Fixed
+
+- **Warehouse request report:** a request naming only a category, waiting for the warehouse to pick the
+  product, is `awaiting_unit` rather than counted as an unconvertible quality issue; stock sent to a
+  district without a request is reported apart (`dispatches_without_request`); types are named Male and
+  Female.
+
 - **Delivery agents for hotspot deliveries.** A DCFP may name the delivery agent who carries a
   delivery to a hotspot (`rider_id` on `POST /api/v1/orders/stockouts/{id}/deliveries`); only active
   users with `orders:deliver` working in the hotspot's district qualify, listed by
@@ -106,6 +132,13 @@ Notable changes to CLIMS. The format follows [Keep a Changelog](https://keepacha
   DCFP notifications on their screen and marks them read.
 
 ### Removed
+
+- **Web access for field roles.** VHTs, hotspot managers and delivery agents use only the mobile app.
+  Web sign-in, by password or from the portal, refuses an account whose roles open no web workspace
+  and work in the field app: it ends the session the API just opened and points the person to the
+  mobile app. A session kept from before opens no page either. The VHT web workspace (`/vht`, My
+  hotspots) and the web's Submit hotspot form are gone; VHTs submit hotspots in the mobile app, and
+  the API is unchanged.
 
 - The warehouse screens' mock-only `/warehouses/{code}/…` contract and its sample requests, stock and
   dispatch picker; the warehouse now reads orders, stock and batches from the Go API.

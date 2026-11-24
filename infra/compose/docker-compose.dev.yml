@@ -36,6 +36,8 @@ services:
     environment:
       BACKEND_URL: http://backend:8080
       WATCHPACK_POLLING: "true"
+      # The LAN address other devices open (docs/clients.md); empty serves localhost only.
+      ALLOWED_DEV_ORIGINS: ${MOBILE_HOST:-}
       # Sent to the browser; never a secret.
       NEXT_PUBLIC_MAP_TILES: ${NEXT_PUBLIC_MAP_TILES:-}
       NEXT_PUBLIC_MAP_ATTRIBUTION: ${NEXT_PUBLIC_MAP_ATTRIBUTION:-}

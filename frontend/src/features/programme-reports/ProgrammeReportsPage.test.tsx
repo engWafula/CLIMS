@@ -2,11 +2,13 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
+import { analyticsApi, NOTIFICATIONS, routes } from '@/test/analyticsFixtures';
 import type { RecordedRequest } from '@/test/fakeAdapter';
+import { testRouter } from '@/test/navigation';
 import { renderApp, sessionWith } from '@/test/renderApp';
 
 import type { ReportTable, ReportVersion } from './api';
-import { displayCell } from './files';
+import { displayCell, printCell } from './files';
 import ProgrammeReportsPage from './ProgrammeReportsPage';
 
 const envelope = (data: unknown) => ({ success: true, data });
@@ -38,6 +40,7 @@ const TABLE: ReportTable = {
 };
 
 const SUMMARY = {
+  ...NOTIFICATIONS,
   notifications_raised: 1,
   notifications_fulfilled: 0,
   partly_received: 0,
@@ -69,15 +72,17 @@ const VERSION: ReportVersion = {
   created_at: '2026-11-22T09:00:00Z',
 };
 
-function api(request: RecordedRequest) {
+function own(request: RecordedRequest) {
   const path = new URL(request.url, 'http://test').pathname;
   if (path === '/reports/export/notifications') return { status: 200, body: envelope(TABLE) };
   if (path === '/reports/notifications') return { status: 200, body: envelope(SUMMARY) };
   if (path === '/reports/versions') return { status: 200, body: envelope([VERSION]) };
   if (path === '/reports/versions/v1')
     return { status: 200, body: envelope({ ...VERSION, export: TABLE }) };
-  return { status: 404, body: { success: false, message: 'Not found' } };
+  return null;
 }
+
+const api = routes(own, analyticsApi());
 
 describe('ProgrammeReportsPage', () => {
   it("shows the server's rows with its filters, a genuine zero apart from blank data", async () => {
@@ -95,11 +100,13 @@ describe('ProgrammeReportsPage', () => {
     expect(
       screen.getByRole('columnheader', { name: /Male pieces acknowledged/ }),
     ).toBeInTheDocument();
-    expect(requests.map((request) => request.url)).toContain(
-      '/reports/export/notifications?category=male',
+    const exported = requests.find((request) =>
+      request.url.startsWith('/reports/export/notifications'),
     );
-    expect(await screen.findByText('Not applicable')).toBeInTheDocument(); // median response with nothing fulfilled
-    expect(screen.getByText('Male condoms')).toBeInTheDocument();
+    expect(exported?.url).toMatch(/category=male/);
+    expect(exported?.url).toMatch(/from=\d{4}-\d{2}-01/); // the default period, last 3 months
+    expect(await screen.findAllByText('Not applicable')).not.toHaveLength(0); // median with nothing fulfilled
+    expect(screen.getAllByText('Male condoms').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Approve version' })).toBeEnabled();
   });
 
@@ -123,6 +130,50 @@ describe('ProgrammeReportsPage', () => {
     await user.click(await screen.findByRole('link', { name: 'Notification fulfilment' }));
     expect(await screen.findByText(/kept as they were approved/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Correct' })).not.toBeInTheDocument();
+  });
+
+  it('opens on the overview, with figures, charts and a PDF download', async () => {
+    renderApp(<ProgrammeReportsPage workspace="moh" />, {
+      route: '/moh/programme-reports',
+      session: sessionWith(['reports:read']),
+      replies: [api],
+    });
+    expect(await screen.findByText('50,300 pcs')).toBeInTheDocument(); // usable stock, two stores
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'true');
+    expect(
+      screen.getByRole('heading', { name: 'Stock flow through the supply chain' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Hotspots by region' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeEnabled();
+  });
+
+  it('shows active filters as chips, and removing one clears it from the address', async () => {
+    const user = userEvent.setup();
+    renderApp(<ProgrammeReportsPage workspace="moh" />, {
+      route: '/moh/programme-reports?view=overview&category=female&period=last-month',
+      session: sessionWith(['reports:read']),
+      replies: [api],
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'Remove filter Type: Female condoms' }),
+    );
+    expect(testRouter.location).not.toMatch(/category=/);
+    expect(testRouter.location).toMatch(/period=last-month/);
+  });
+
+  it('leaves the district filter to the server for a district account', async () => {
+    renderApp(<ProgrammeReportsPage workspace="dcfp" />, {
+      route: '/dcfp/programme-reports?view=notifications',
+      session: sessionWith(['reports:read'], ['dfcp']),
+      replies: [api],
+    });
+    await screen.findByRole('region', { name: 'Report filters' });
+    expect(screen.queryByText('District')).not.toBeInTheDocument();
+  });
+
+  it('prints timestamps absolutely, and keeps blank, zero and dates distinct', () => {
+    expect(printCell('raised_at', '2026-11-24T03:38:00Z')).toBe('24 Nov 2026, 06:38');
+    expect(printCell('received_male_pieces', 0)).toBe('0');
   });
 
   it('keeps blank, zero, dates and timestamps distinct', () => {

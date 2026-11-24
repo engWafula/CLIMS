@@ -26,7 +26,7 @@ export default function GeographyPage() {
   const geography = useGeography();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <SampleDataNotice subject="The organisation units" />
       {geography.isPending ? (
         <PageSkeleton layout="detail" />

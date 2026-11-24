@@ -380,6 +380,7 @@ func testOrderWorkflow(t *testing.T, pool *pgxpool.Pool,
 	testBatchExpiry(t, pool, request, admin, districtToken, warehouseToken, warehouse, district, product, unit)
 	testExpiryAlerts(t, pool, request, districtToken, warehouseToken, warehouse, district)
 	testSettingsAndHMIS(t, pool, request, admin, districtToken, otherToken, warehouse, district)
+	testTrendsAndCoverage(t, pool, request, admin, districtToken, warehouseToken, district)
 	testExportsAndVersions(t, pool, request, admin, districtToken, district)
 	testStoreSummary(t, pool, request, admin, districtToken, warehouse, district, product, unit)
 	testBatchEdit(t, pool, request, admin, districtToken, warehouse, product, unit)

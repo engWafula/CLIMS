@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-/** The four shapes a page's content takes while it loads. */
-export type PageSkeletonLayout = 'dashboard' | 'table' | 'detail' | 'form';
+/** Shapes matched to the content a page shows while it loads. */
+export type PageSkeletonLayout = 'dashboard' | 'table' | 'detail' | 'form' | 'stockout';
 
 // Ragged widths so the placeholder reads as text, not as a grid of bars. Kept
 // as whole class names so Tailwind can see them.
@@ -200,6 +200,83 @@ function DetailSkeleton() {
   );
 }
 
+/** The stockout request's progress, send form, request and contact cards. */
+function StockoutSkeleton() {
+  return (
+    <>
+      <Panel>
+        <div className="flex flex-col gap-2 px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-5 w-40" />
+            <Chip />
+          </div>
+          <Line className="h-2.5 w-[min(24rem,75%)]" />
+        </div>
+        <div className="bg-muted/40 flex flex-wrap gap-3 border-t px-4 pt-2 pb-3">
+          {[0, 1, 2].map((step) => (
+            <div key={step} className="flex min-w-0 flex-[1_1_6.5rem] flex-col gap-1.5">
+              <Skeleton className="h-1 rounded-full" />
+              <Line className="mt-1 h-2 w-1/3" />
+              <Line className={cn('h-3', width(WIDTHS, step))} />
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <div className="gap-section grid lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="gap-section flex min-w-0 flex-col">
+          <div className="bg-card rounded-lg border px-3 py-3">
+            <Line className="h-3 w-40" />
+            <Line className="mt-2 h-2.5 w-4/5" />
+          </div>
+          <div className="flex flex-col gap-4">
+            <Line className="h-3 w-36" />
+            <div className="divide-y border-y">
+              {[0, 1].map((row) => (
+                <div key={row} className="flex items-center justify-between gap-4 py-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <Line className={cn('h-3', width(WIDTHS, row))} />
+                    <Line className="h-2.5 w-2/5" />
+                  </div>
+                  <Skeleton className="h-8 w-24 shrink-0 rounded-lg" />
+                  <Line className="hidden w-12 sm:block" />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Line className="h-2.5 w-28" />
+              <Skeleton className="h-8 w-full rounded-lg" />
+              <Line className="h-2 w-2/3" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Line className="h-2.5 w-24" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+            </div>
+            <Skeleton className="h-8 w-36 rounded-lg" />
+          </div>
+        </div>
+        <div className="gap-section flex min-w-0 flex-col">
+          <Panel className="flex flex-col gap-3.5 px-4 py-3">
+            <Line className="h-3 w-20" />
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="flex items-center justify-between gap-3">
+                <Line className="h-2.5 w-1/3" />
+                <Line className={cn('h-2.5', width(SHORT_WIDTHS, row + 6))} />
+              </div>
+            ))}
+            <Skeleton className="h-7 w-40 rounded-lg" />
+          </Panel>
+          <Panel className="flex flex-col gap-3.5 px-4 py-3">
+            <Line className="h-3 w-20" />
+            <Line className="h-3 w-2/3" />
+            <Line className="h-2.5 w-4/5" />
+            <Skeleton className="h-7 w-32 rounded-lg" />
+          </Panel>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function FormSkeleton() {
   return (
     <div className="flex flex-wrap items-start gap-3">
@@ -231,6 +308,7 @@ const LAYOUTS: Record<PageSkeletonLayout, () => ReactNode> = {
   dashboard: DashboardSkeleton,
   detail: DetailSkeleton,
   form: FormSkeleton,
+  stockout: StockoutSkeleton,
 };
 
 interface PageSkeletonProps {

@@ -770,9 +770,9 @@ describe('UsersPage insights, bulk actions and profile', () => {
     await user.click(await screen.findByRole('button', { name: 'James Okello' }));
     const profile = await screen.findByRole('dialog', { name: 'James Okello' });
     const opens = within(profile).getByRole('region', { name: 'What they can open' });
-    // A district focal person (and VHT) opens the DCFP and VHT workspaces.
+    // A district focal person (and VHT) opens the DCFP workspace; the VHT role adds nothing on the web.
     expect(within(opens).getByText('District focal person')).toBeInTheDocument();
-    expect(within(opens).getByText('Village health team')).toBeInTheDocument();
+    expect(within(opens).queryByText('Village health team')).not.toBeInTheDocument();
     expect(within(profile).getByText('4 months ago')).toBeInTheDocument();
 
     await user.click(within(profile).getByRole('button', { name: 'Edit roles' }));

@@ -13,7 +13,7 @@ import type { NavItem, NavPage, NavSection, Workspace } from './navigation';
  * permissions (see `useCan`), because administrators tune those per role.
  */
 
-export type WorkspaceId = 'moh' | 'dcfp' | 'warehouse' | 'vht';
+export type WorkspaceId = 'moh' | 'dcfp' | 'warehouse';
 
 /** `full` can act; `read` can look but every action is turned off. */
 export type AccessLevel = 'full' | 'read';
@@ -31,12 +31,12 @@ export interface WebAccess {
   noWorkspace: NoWorkspaceReason | null;
 }
 
-const ALL_FULL: WorkspaceAccess = { moh: 'full', dcfp: 'full', warehouse: 'full', vht: 'full' };
+const ALL_FULL: WorkspaceAccess = { moh: 'full', dcfp: 'full', warehouse: 'full' };
 
 interface RoleAccess {
   workspaces: WorkspaceAccess;
   warehouses?: readonly WarehouseCode[];
-  /** The role works in the field app; on the web it is pointed there. */
+  /** The role works only in the field app: web sign-in refuses it and points it there. */
   mobile?: boolean;
 }
 
@@ -47,22 +47,25 @@ interface RoleAccess {
  */
 const ROLE_ACCESS: Readonly<Record<string, RoleAccess>> = {
   admin: { workspaces: ALL_FULL, warehouses: WAREHOUSES },
-  // MOH oversees everything: its own workspace, and every other one read-only.
+  // MOH oversees the whole programme and changes nothing: every workspace opens read-only, its
+  // own included (decided 2026-11-24; migration 39 grants it every read permission and no write).
   moh: {
-    workspaces: { moh: 'full', dcfp: 'read', warehouse: 'read', vht: 'read' },
+    workspaces: { moh: 'read', dcfp: 'read', warehouse: 'read' },
     warehouses: WAREHOUSES,
   },
   dfcp: { workspaces: { dcfp: 'full' } },
   dcfp: { workspaces: { dcfp: 'full' } },
   nms: { workspaces: { warehouse: 'full' }, warehouses: ['NMS'] },
   jms: { workspaces: { warehouse: 'full' }, warehouses: ['JMS'] },
-  vht: { workspaces: { vht: 'full' } },
+  // Field roles have no web access: they map hotspots, report stockouts and carry stock in the
+  // mobile app.
+  vht: { workspaces: {}, mobile: true },
   'hotspot manager': { workspaces: {}, mobile: true },
   'delivery agent': { workspaces: {}, mobile: true },
 };
 
 /** The order workspaces are offered in, and the first one a person can act in is their home. */
-export const WORKSPACE_ORDER: readonly WorkspaceId[] = ['moh', 'dcfp', 'warehouse', 'vht'];
+export const WORKSPACE_ORDER: readonly WorkspaceId[] = ['moh', 'dcfp', 'warehouse'];
 
 const rank = (level: AccessLevel | undefined) => (level === 'full' ? 2 : level === 'read' ? 1 : 0);
 

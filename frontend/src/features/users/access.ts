@@ -65,6 +65,11 @@ export function isAdminRole(role: Pick<Role, 'name'>): boolean {
   return role.name?.trim().toLowerCase() === ADMIN_ROLE_NAME;
 }
 
+/** The role public sign-up gives; the API refuses to grant it anything (anyone can register). */
+export function isSignUpRole(role: Pick<Role, 'name'>): boolean {
+  return role.name?.trim().toLowerCase() === 'registered user';
+}
+
 /** The names of every role a user holds, falling back to their primary role. */
 export function userRoleLabels(user: Pick<User, 'roles' | 'role'>): string[] {
   if (user.roles.length > 0) return user.roles.map(roleLabel);

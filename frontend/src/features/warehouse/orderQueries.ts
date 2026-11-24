@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { productName, type Product } from '@/features/catalogue/api';
 import { useLookups, useProducts } from '@/features/catalogue/queries';
 import { dcfpKeys } from '@/features/dcfp/queries';
+import { nationalKeys } from '@/features/moh/queries';
 import { useStores } from '@/features/geography/queries';
 import { listBatches, listStock } from '@/features/inventory/api';
 import {
@@ -25,7 +26,7 @@ import { formatNumber } from '@/lib/format';
 
 import { ordersAt, warehouseStoreOf } from './requests';
 import { useWarehouseStore } from './useWarehouseStore';
-import { warehouseOrderKeys } from './queryKeys';
+import { warehouseOrderKeys, warehouseStockKeys } from './queryKeys';
 export { warehouseOrderKeys } from './queryKeys';
 
 /*
@@ -178,11 +179,14 @@ function useStep<Input>(
     onSuccess: (order) => {
       toast.success(success(order));
     },
-    // A failed approval may still have reviewed the order, so refetch either way.
+    // A failed approval may still have reviewed the order, so refetch either way. Reserving and
+    // dispatching change stock and the ledger too.
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: warehouseOrderKeys.all }),
         queryClient.invalidateQueries({ queryKey: dcfpKeys.all }),
+        queryClient.invalidateQueries({ queryKey: warehouseStockKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nationalKeys.all }),
       ]),
     // The order page shows each failure next to the step that failed.
     meta: { handlesOwnErrors: true },

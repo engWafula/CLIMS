@@ -11,7 +11,7 @@ import { formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 import { BAND_ORDER, bandAcrossUnits, type UnitShelfLife } from './shelfLife';
-import { formatAmounts } from './summary';
+import { formatStock, unitSuffix } from './summary';
 
 /**
  * Each band's fill. Reds can't leave (or leave only by exception), oranges are warnings, green is
@@ -42,7 +42,8 @@ interface ShelfLifeOverviewProps {
 
 /**
  * The store's stock against its expiry dates: a bar per unit of measure split into six shelf-life
- * bands, and a legend whose entries open the batches in each band.
+ * bands, and a legend whose entries open the batches in each band. Stock is in pieces, so there is
+ * normally one bar; an old record in another unit gets its own, named.
  */
 export function ShelfLifeOverview({
   code,
@@ -55,7 +56,7 @@ export function ShelfLifeOverview({
 }: ShelfLifeOverviewProps) {
   const hasFailed = error !== undefined && error !== null;
   return (
-    <Card className="min-w-0 gap-0 py-0">
+    <Card className="@container min-w-0 gap-0 py-0">
       <CardHeader className="border-b py-3">
         <CardTitle>Shelf life of stock at {code}</CardTitle>
         <CardDescription>
@@ -71,10 +72,10 @@ export function ShelfLifeOverview({
           isRetrying={isRetrying}
         />
       ) : isLoading || !units ? (
-        <CardContent className="flex flex-col gap-4 py-4" role="status">
+        <CardContent className="flex flex-col gap-3 py-3" role="status">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-3 w-full rounded-full" />
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 @sm:grid-cols-2 @xl:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
               <Skeleton key={index} className="h-8 w-full" />
             ))}
@@ -88,21 +89,22 @@ export function ShelfLifeOverview({
           description="Once stock is registered, its batches are shown here by how long they have left."
         />
       ) : (
-        <CardContent className="flex flex-col gap-4 py-4">
+        <CardContent className="flex flex-col gap-3 py-3">
           <div className="flex flex-col gap-3">
             {units.map((unit) => {
               const held = unit.bands.filter((share) => share.quantity > 0);
+              const onHand = `${formatNumber(unit.total)}${unitSuffix(unit.unit)} on hand`;
               return (
                 <div key={unit.unit} className="flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-                    <span className="font-medium">{unit.unit}</span>
+                    <span className="font-medium tabular-nums">{onHand}</span>
                     <span className="text-muted-foreground text-[0.8125rem] tabular-nums">
-                      {formatNumber(unit.total)} on hand · {batchCount(unit.batches)}
+                      {batchCount(unit.batches)}
                     </span>
                   </div>
                   <div
                     role="img"
-                    aria-label={`${unit.unit}: ${held
+                    aria-label={`Of ${onHand}: ${held
                       .map(
                         (share) =>
                           `${formatNumber(share.quantity)} ${BAND_STATUS[share.band].label.toLowerCase()}`,
@@ -113,7 +115,7 @@ export function ShelfLifeOverview({
                     {held.map((share) => (
                       <div
                         key={share.band}
-                        title={`${BAND_STATUS[share.band].label}: ${formatNumber(share.quantity)} ${unit.unit}, ${batchCount(share.batches)}`}
+                        title={`${BAND_STATUS[share.band].label}: ${formatNumber(share.quantity)}${unitSuffix(unit.unit)}, ${batchCount(share.batches)}`}
                         className={cn('h-full min-w-1', BAND_FILL[share.band])}
                         style={{ flexGrow: share.quantity, flexBasis: 0 }}
                       />
@@ -126,7 +128,7 @@ export function ShelfLifeOverview({
 
           <ul
             aria-label="Shelf-life bands"
-            className="grid gap-x-4 gap-y-1 border-t pt-3 sm:grid-cols-2 2xl:grid-cols-3"
+            className="grid gap-x-4 gap-y-1 border-t pt-3 @sm:grid-cols-2 @xl:grid-cols-3"
           >
             {BAND_ORDER.map((band) => {
               const { amounts, batches } = bandAcrossUnits(units, band);
@@ -139,7 +141,7 @@ export function ShelfLifeOverview({
                   <span className="min-w-0">
                     <span className="block text-sm font-medium">{BAND_STATUS[band].label}</span>
                     <span className="text-muted-foreground block text-xs break-words tabular-nums">
-                      {batches > 0 ? `${formatAmounts(amounts)} · ${batchCount(batches)}` : 'None'}
+                      {batches > 0 ? `${formatStock(amounts)} · ${batchCount(batches)}` : 'None'}
                     </span>
                   </span>
                 </>

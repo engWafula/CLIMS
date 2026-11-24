@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestValidDistrictDispatch(t *testing.T) {
@@ -66,5 +68,21 @@ func TestLineError(t *testing.T) {
 	}
 	if !errors.Is(err, errNoFreeStock) {
 		t.Error("errors.Is does not see the cause through the line")
+	}
+}
+
+func TestLineMessageKeepsTheLine(t *testing.T) {
+	for name, tc := range map[string]struct {
+		err  error
+		want string
+	}{
+		"inactive product": {lineError{line: 3, err: errInactiveProduct}, "line 3: this product is inactive and cannot be sent"},
+		"missing unit":     {lineError{line: 2, err: &pgconn.PgError{Code: "23503"}}, "line 2: a referenced store, product or unit does not exist"},
+		"own message":      {lineError{line: 1, err: errNoFreeStock}, ""},
+		"not a line":       {errInactiveProduct, ""},
+	} {
+		if got := lineMessage(tc.err); got != tc.want {
+			t.Errorf("%s: %q, want %q", name, got, tc.want)
+		}
 	}
 }

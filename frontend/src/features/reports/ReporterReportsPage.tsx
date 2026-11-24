@@ -120,7 +120,7 @@ export default function ReporterReportsPage({
   const [newest] = reports.data;
   if (!newest) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="gap-section flex flex-col">
         <SampleDataNotice subject="The reports" />
         <div className="bg-card rounded-card border">
           <EmptyState
@@ -136,7 +136,7 @@ export default function ReporterReportsPage({
   const selected = reports.data.find((report) => report.period === month) ?? newest;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <SampleDataNotice subject="The reports" />
       <div className="w-full sm:w-64">
         <SelectField

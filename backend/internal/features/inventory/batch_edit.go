@@ -130,12 +130,14 @@ type heldBatch struct {
 	receiptID *string
 }
 
-// lockBatch locks a batch with stock at a store the user may change.
+// lockBatch locks a batch with stock at a store the user may change. It locks the store's balance for
+// the batch's product and unit first, the order every other stock write takes (dispatch, delivery,
+// receipt), so a correction racing a dispatch waits for it instead of deadlocking. A batch's store,
+// product and unit never change, so reading them before the lock is safe.
 func lockBatch(ctx context.Context, tx pgx.Tx, access scope, id string) (heldBatch, error) {
 	b := heldBatch{id: id}
-	err := tx.QueryRow(ctx, `SELECT store_id, condom_id, unit_of_measure_id, batch_number, expiry_date, on_hand
-		FROM stock_batches WHERE id = $1 FOR UPDATE`, id).
-		Scan(&b.storeID, &b.condomID, &b.unitID, &b.number, &b.expiry, &b.onHand)
+	err := tx.QueryRow(ctx, `SELECT store_id, condom_id, unit_of_measure_id FROM stock_batches WHERE id = $1`, id).
+		Scan(&b.storeID, &b.condomID, &b.unitID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return b, errBatchNotFound
 	}
@@ -144,6 +146,19 @@ func lockBatch(ctx context.Context, tx pgx.Tx, access scope, id string) (heldBat
 	}
 	if !access.allStores && (access.storeID == nil || *access.storeID != b.storeID) {
 		return b, errForbidden
+	}
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM order_store_stock
+		WHERE store_id = $1 AND condom_id = $2 AND unit_of_measure_id = $3 FOR UPDATE`,
+		b.storeID, b.condomID, b.unitID); err != nil {
+		return b, err
+	}
+	err = tx.QueryRow(ctx, `SELECT batch_number, expiry_date, on_hand FROM stock_batches WHERE id = $1 FOR UPDATE`, id).
+		Scan(&b.number, &b.expiry, &b.onHand)
+	if errors.Is(err, pgx.ErrNoRows) { // deleted while this waited
+		return b, errBatchNotFound
+	}
+	if err != nil {
+		return b, err
 	}
 	if b.onHand == 0 {
 		return b, errBatchEmpty

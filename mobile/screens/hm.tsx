@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { isAxiosError } from "axios";
-import { useFocusEffect } from "expo-router";
+import { useFocusedRefresh } from "@/hooks/useFocusedRefresh";
 import Screen from "@/components/m/Screen";
 import { Banner, Btn, Hero, List, Row, SkeletonList } from "@/components/m/kit";
 import { isNetworkError } from "@/lib/hotspots";
@@ -153,19 +153,18 @@ type Load = "loading" | "ok" | "offline" | "forbidden" | "error";
  */
 function useApiOrders() {
   const me = useMe();
-  const { s, syncApiOrders } = useStore();
+  const { s, syncApiOrders, offline } = useStore();
   const [load, setLoad] = useState<Load>("loading");
-  useFocusEffect(
-    useCallback(() => {
-      let live = true;
-      listStockouts()
-        .then((reports) => {
-          if (!live) return;
+  useFocusedRefresh(
+    useCallback(
+      async (isCurrent) => {
+        try {
+          const reports = await listStockouts();
+          if (!isCurrent()) return;
           syncApiOrders(reports.map((r) => toLocalOrder(r, me.name, "Hotspot manager")));
           setLoad("ok");
-        })
-        .catch((e: unknown) => {
-          if (!live) return;
+        } catch (e: unknown) {
+          if (!isCurrent()) return;
           setLoad(
             isNetworkError(e)
               ? "offline"
@@ -173,11 +172,11 @@ function useApiOrders() {
                 ? "forbidden"
                 : "error",
           );
-        });
-      return () => {
-        live = false;
-      };
-    }, [me.name, syncApiOrders]),
+        }
+      },
+      [me.name, syncApiOrders],
+    ),
+    offline,
   );
   const orders = s.orders
     .filter((o) => o.source === "api")
@@ -209,21 +208,24 @@ function LoadBanner({ load, any }: { load: Load; any: boolean }) {
 function useRecentDetails(ids: string[]) {
   const [details, setDetails] = useState<Record<string, StockoutDetail>>({});
   const key = ids.join(",");
-  useFocusEffect(
-    useCallback(() => {
-      let live = true;
-      for (const id of key ? key.split(",") : []) {
-        getStockout(id)
-          .catch(() => savedStockout(id))
-          .then((d) => {
-            if (live && d) setDetails((cur) => ({ ...cur, [id]: d }));
-          })
-          .catch(() => {});
-      }
-      return () => {
-        live = false;
-      };
-    }, [key]),
+  const { offline } = useStore();
+  useFocusedRefresh(
+    useCallback(
+      async (isCurrent) => {
+        await Promise.all(
+          (key ? key.split(",") : []).map(async (id) => {
+            try {
+              const detail = await getStockout(id).catch(() => savedStockout(id));
+              if (isCurrent() && detail) setDetails((cur) => ({ ...cur, [id]: detail }));
+            } catch (error) {
+              console.error("Could not load saved request details", error);
+            }
+          }),
+        );
+      },
+      [key],
+    ),
+    offline,
   );
   return details;
 }

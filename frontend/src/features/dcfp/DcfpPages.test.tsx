@@ -112,6 +112,33 @@ describe('WarehouseOrdersPage', () => {
     expect(within(table).getByText('On the way')).toBeInTheDocument();
     expect(within(table).getAllByRole('row')).toHaveLength(3); // header and two orders
   });
+
+  it('opens on the consignments to receive from ?status=dispatched, and can show them all', async () => {
+    const user = userEvent.setup();
+    renderApp(<WarehouseOrdersPage />, {
+      route: '/dcfp/restock?status=dispatched',
+      signedIn: true,
+      replies: [
+        dcfpApi({
+          orders: [
+            anOrder(),
+            anOrder({ id: 'o2', ordered_from_store_id: JMS.id, order_status: 'dispatched' }),
+          ],
+        }),
+      ],
+    });
+
+    const table = await screen.findByRole('table', { name: 'Warehouse orders' });
+    expect(await within(table).findByText('On the way')).toBeInTheDocument();
+    expect(within(table).getAllByRole('row')).toHaveLength(2); // header and the dispatched order
+
+    await user.click(screen.getByRole('combobox', { name: 'Status' }));
+    await user.click(await screen.findByRole('option', { name: 'All statuses' }));
+    await waitFor(() => {
+      expect(within(table).getAllByRole('row')).toHaveLength(3);
+    });
+    expect(testRouter.search).toBe('');
+  });
 });
 
 describe('NewWarehouseOrderPage', () => {

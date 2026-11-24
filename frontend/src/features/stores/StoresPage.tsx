@@ -83,7 +83,7 @@ export default function StoresPage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <p className="text-muted-foreground text-sm">
         Physical stock in its recorded units, including reserved and expired stock. User counts
         include everyone assigned to each store.

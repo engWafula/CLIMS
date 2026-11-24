@@ -4,13 +4,15 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 
 import { PageLoader } from '@/components/states/PageLoader';
-import { useSession, useSignedOut } from '@/features/auth/hooks';
+import { useSession } from '@/features/auth/hooks';
+import { selectSignedOut, signOutAcknowledged } from '@/features/auth/authSlice';
+import { hasPermissions } from '@/features/auth/session';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { safeReturnPath } from '@/features/auth/returnPath';
 
-import { accessTo, type WebAccess } from './access';
-import { locate } from './navigation';
 import { HOME_PATH, SIGN_IN_PATH } from './paths';
-import { useWebAccess } from './useAccess';
+import { accessTo, homeWorkspace, navigationFor, webAccessFor } from './access';
+import { locate } from './navigation';
 import { workspaces } from './workspaces';
 
 /** The query parameter that carries where a visitor was headed when the guard intercepted them. */
@@ -32,7 +34,7 @@ export function Redirect({ to }: RedirectProps) {
   useEffect(() => {
     router.replace(to);
   }, [router, to]);
-  return <PageLoader />;
+  return <PageLoader pathname={to} />;
 }
 
 interface GuardProps {
@@ -49,37 +51,46 @@ interface GuardProps {
  */
 export function RequireAuth({ children }: GuardProps) {
   const session = useSession();
-  const signedOut = useSignedOut();
+  const signedOut = useAppSelector(selectSignedOut);
   const pathname = usePathname();
   const search = useSearchParams().toString();
 
-  if (!session) {
-    // After choosing to sign out, the page they were on is not remembered: the next person to
-    // sign in in this browser may hold a different role, and it was not where they were headed.
-    if (signedOut) return <Redirect to={SIGN_IN_PATH} />;
-    return <Redirect to={signInHref(search ? `${pathname}?${search}` : pathname)} />;
-  }
+  if (!session)
+    return (
+      <Redirect
+        to={signedOut ? SIGN_IN_PATH : signInHref(search ? `${pathname}?${search}` : pathname)}
+      />
+    );
   return children;
-}
-
-/**
- * Whether `path` lies in a workspace `access` opens. The return path was recorded for whoever
- * was signed in before, so it is only followed when it is part of the new user's work.
- */
-export function canReturnTo(path: string, access: WebAccess): boolean {
-  const pathname = path.split(/[?#]/, 1)[0] ?? path;
-  return accessTo(access, locate(workspaces, pathname).workspace.id) !== null;
 }
 
 /** Sends an already signed-in user away from the sign-in page. */
 export function RedirectIfSignedIn({ children }: GuardProps) {
   const session = useSession();
-  const access = useWebAccess();
+  const signedOut = useAppSelector(selectSignedOut);
+  const dispatch = useAppDispatch();
   const from = useSearchParams().get(RETURN_PARAM);
+  useEffect(() => {
+    // Once sign-in is reached, a new protected link should be remembered normally.
+    if (signedOut) dispatch(signOutAcknowledged());
+  }, [dispatch, signedOut]);
 
   if (session) {
-    const target = safeReturnPath(from, HOME_PATH, SIGN_IN_PATH);
-    return <Redirect to={canReturnTo(target, access) ? target : HOME_PATH} />;
+    const access = webAccessFor(session.user.roleNames);
+    const home =
+      workspaces.find((workspace) => workspace.id === homeWorkspace(access))?.basePath ?? HOME_PATH;
+    const requested = safeReturnPath(from, home, SIGN_IN_PATH);
+    const path = new URL(requested, 'https://clims.invalid').pathname;
+    const target = locate(workspaces, path);
+    const navigation = navigationFor(workspaces, access, (code) =>
+      hasPermissions(session.user, [code]),
+    );
+    const visible = locate(navigation.length ? navigation : workspaces, path);
+    const known = target.page !== null || target.detail !== null;
+    const allowed =
+      accessTo(access, target.workspace.id) !== null &&
+      (visible.page !== null || visible.detail !== null);
+    return <Redirect to={known && !allowed ? home : requested} />;
   }
   return children;
 }

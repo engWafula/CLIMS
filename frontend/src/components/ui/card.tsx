@@ -12,7 +12,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        'group/card bg-card text-card-foreground border-border rounded-card *:[img:first-child]:rounded-t-card *:[img:last-child]:rounded-b-card flex flex-col gap-(--card-spacing) overflow-hidden border py-(--card-spacing) text-sm [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0',
+        'group/card bg-card text-card-foreground border-border rounded-card *:[img:first-child]:rounded-t-card *:[img:last-child]:rounded-b-card flex flex-col gap-(--card-gap) overflow-hidden border py-(--card-gap) text-sm [--card-gap:--spacing(3)] [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0',
         className,
       )}
       {...props}
@@ -25,7 +25,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="card-header"
       className={cn(
-        'group/card-header rounded-t-card @container/card-header grid auto-rows-min items-start gap-1 px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing)',
+        'group/card-header rounded-t-card @container/card-header grid auto-rows-min items-start gap-1 px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-gap)',
         className,
       )}
       {...props}
@@ -92,7 +92,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="card-footer"
       className={cn(
-        'bg-muted/50 rounded-b-card flex items-center border-t p-(--card-spacing)',
+        'bg-muted/50 rounded-b-card flex items-center border-t px-(--card-spacing) py-(--card-gap)',
         className,
       )}
       {...props}

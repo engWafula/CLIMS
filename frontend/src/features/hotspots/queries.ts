@@ -10,30 +10,18 @@ import {
   getHotspot,
   listAllHotspots,
   listHotspotEvents,
-  listHotspots,
   listLocationDistricts,
-  submitHotspot,
   type HotspotDecision,
   type HotspotFilter,
-  type HotspotSubmission,
 } from './api';
 
 const hotspotsKey = ['hotspots'] as const;
 export const hotspotKeys = {
   all: hotspotsKey,
-  list: (districtId: string | null) => [...hotspotsKey, 'list', districtId] as const,
   allPages: (filter: HotspotFilter) => [...hotspotsKey, 'all', filter] as const,
   detail: (id: string) => [...hotspotsKey, 'detail', id] as const,
   events: (id: string) => [...hotspotsKey, 'detail', id, 'events'] as const,
 };
-
-export function useHotspots(districtId: string | null = null, enabled = true) {
-  return useApiQuery(
-    hotspotKeys.list(districtId),
-    (http, signal) => listHotspots(http, signal, districtId),
-    { enabled },
-  );
-}
 
 /** Every hotspot matching `filter` that the caller can see, read page by page. */
 export function useAllHotspots(filter: HotspotFilter = {}, { enabled = true } = {}) {
@@ -64,19 +52,6 @@ function useInvalidateHotspots() {
       queryClient.invalidateQueries({ queryKey: hotspotsKey }),
       queryClient.invalidateQueries({ queryKey: notificationKeys.inbox }),
     ]);
-}
-
-export function useSubmitHotspot() {
-  const http = useHttp();
-  const invalidate = useInvalidateHotspots();
-  return useMutation({
-    mutationFn: (input: HotspotSubmission) => submitHotspot(http, input),
-    onSuccess: async () => {
-      toast.success('Hotspot submitted. The district focal person will review it.');
-      await invalidate();
-    },
-    meta: { handlesOwnErrors: true },
-  });
 }
 
 export function useCommentOnHotspot(id: string) {

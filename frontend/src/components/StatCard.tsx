@@ -95,19 +95,19 @@ export function StatCard({
           <span className="text-muted-foreground text-[0.8125rem] font-medium">{label}</span>
           {isSample ? <SampleBadge /> : null}
         </div>
-        <div className="bg-secondary flex size-7 shrink-0 items-center justify-center rounded-md">
+        <div className="bg-secondary flex size-6 shrink-0 items-center justify-center rounded-md">
           <Icon className={cn('size-3.5', ACCENT_CLASSES[accent])} aria-hidden="true" />
         </div>
       </div>
       {isLoading ? (
         <div role="status">
-          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-7 w-24" />
           <span className="sr-only">Loading {label.toLowerCase()}…</span>
         </div>
       ) : (
         <div className="flex items-end justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="text-foreground text-2xl leading-8 font-bold tracking-tight break-words tabular-nums">
+            <p className="text-foreground text-2xl leading-7 font-bold tracking-tight break-words tabular-nums">
               {value}
             </p>
             {extra ? (
@@ -142,6 +142,15 @@ export function StatCard({
   );
 
   const cardClasses = cn('bg-card rounded-card flex flex-col gap-1.5 border px-4 py-3', className);
+  // PDF reports read the headline figures from these.
+  const kpi = isLoading
+    ? {}
+    : {
+        'data-kpi': '',
+        'data-kpi-label': label,
+        'data-kpi-value': extra ? `${value} (${extra})` : value,
+        'data-kpi-detail': detail,
+      };
   if (href) {
     return (
       <Link
@@ -150,12 +159,17 @@ export function StatCard({
           cardClasses,
           'hover:bg-accent focus-visible:ring-ring outline-none focus-visible:ring-2',
         )}
+        {...kpi}
       >
         {body}
       </Link>
     );
   }
-  return <div className={cardClasses}>{body}</div>;
+  return (
+    <div className={cardClasses} {...kpi}>
+      {body}
+    </div>
+  );
 }
 
 function TrendIcon({ direction }: { direction: 'up' | 'down' | 'flat' }) {
@@ -167,9 +181,21 @@ function TrendIcon({ direction }: { direction: 'up' | 'down' | 'flat' }) {
  * Lays stat cards out in equal columns that wrap, so three cards fill a row as
  * evenly as four do and a narrow screen stacks them.
  */
-export function StatCardGrid({ children }: { children: React.ReactNode }) {
+export function StatCardGrid({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  /** Layout only, e.g. columns that line up with a sidebar column under the row. */
+  className?: string;
+}) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.5rem),1fr))] gap-3">
+    <div
+      className={cn(
+        'grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.5rem),1fr))] gap-3',
+        className,
+      )}
+    >
       {children}
     </div>
   );

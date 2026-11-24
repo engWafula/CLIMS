@@ -5,13 +5,12 @@ import { workspaces } from './workspaces';
 
 describe('webAccessFor', () => {
   it.each([
-    ['admin', { moh: 'full', dcfp: 'full', warehouse: 'full', vht: 'full' }, ['NMS', 'JMS']],
-    ['moh', { moh: 'full', dcfp: 'read', warehouse: 'read', vht: 'read' }, ['NMS', 'JMS']],
+    ['admin', { moh: 'full', dcfp: 'full', warehouse: 'full' }, ['NMS', 'JMS']],
+    ['moh', { moh: 'read', dcfp: 'read', warehouse: 'read' }, ['NMS', 'JMS']],
     ['dfcp', { dcfp: 'full' }, []],
     ['dcfp', { dcfp: 'full' }, []],
     ['jms', { warehouse: 'full' }, ['JMS']],
     ['nms', { warehouse: 'full' }, ['NMS']],
-    ['vht', { vht: 'full' }, []],
   ])('opens the right workspaces for %s', (role, workspacesFor, warehouses) => {
     const access = webAccessFor([role]);
     expect(access.workspaces).toEqual(workspacesFor);
@@ -22,10 +21,9 @@ describe('webAccessFor', () => {
   it('gives the widest access any held role gives, workspace by workspace', () => {
     const access = webAccessFor(['moh', 'dfcp', 'jms']);
     expect(access.workspaces).toEqual({
-      moh: 'full',
+      moh: 'read',
       dcfp: 'full',
       warehouse: 'full',
-      vht: 'read',
     });
     expect(access.warehouses).toEqual(['NMS', 'JMS']);
   });
@@ -34,9 +32,17 @@ describe('webAccessFor', () => {
     expect(webAccessFor([' JMS ']).warehouses).toEqual(['JMS']);
   });
 
-  it('points field roles to the mobile app', () => {
-    expect(webAccessFor(['hotspot manager']).noWorkspace).toBe('mobile');
-    expect(webAccessFor(['delivery agent']).workspaces).toEqual({});
+  it.each(['vht', 'hotspot manager', 'delivery agent', 'VHT'])(
+    'gives %s no web workspace and points it to the mobile app',
+    (role) => {
+      const access = webAccessFor([role]);
+      expect(access.workspaces).toEqual({});
+      expect(access.noWorkspace).toBe('mobile');
+    },
+  );
+
+  it('keeps a person holding only field roles out of the web', () => {
+    expect(webAccessFor(['hotspot manager', 'vht', 'delivery agent']).noWorkspace).toBe('mobile');
   });
 
   it('says when no role opens the web', () => {
@@ -46,9 +52,9 @@ describe('webAccessFor', () => {
   });
 
   it('a web role outweighs a mobile one', () => {
-    const access = webAccessFor(['hotspot manager', 'vht']);
+    const access = webAccessFor(['vht', 'dfcp']);
     expect(access.noWorkspace).toBeNull();
-    expect(access.workspaces).toEqual({ vht: 'full' });
+    expect(access.workspaces).toEqual({ dcfp: 'full' });
   });
 
   it('keeps everything open while the roles are not known yet', () => {
@@ -56,7 +62,6 @@ describe('webAccessFor', () => {
       moh: 'full',
       dcfp: 'full',
       warehouse: 'full',
-      vht: 'full',
     });
   });
 });
@@ -96,8 +101,8 @@ describe('navigationFor', () => {
 
   it('keeps only the workspaces a role opens, marking those it may only look at', () => {
     const nav = navigationFor(workspaces, webAccessFor(['moh']), () => true);
-    expect(ids(nav)).toEqual(['moh', 'dcfp', 'warehouse', 'vht']);
-    expect(nav.map((workspace) => workspace.readOnly)).toEqual([false, true, true, true]);
+    expect(ids(nav)).toEqual(['moh', 'dcfp', 'warehouse']);
+    expect(nav.map((workspace) => workspace.readOnly)).toEqual([true, true, true]);
     expect(ids(navigationFor(workspaces, webAccessFor(['jms']), () => true))).toEqual([
       'warehouse',
     ]);

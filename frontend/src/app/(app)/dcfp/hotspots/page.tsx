@@ -4,5 +4,5 @@ import { pageMetadata } from '@/navigation/pageMetadata';
 export const metadata = pageMetadata('/dcfp/hotspots');
 
 export default function Page() {
-  return <HotspotsPage workspace="review" />;
+  return <HotspotsPage />;
 }

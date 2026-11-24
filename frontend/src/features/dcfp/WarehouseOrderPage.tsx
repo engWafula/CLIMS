@@ -23,7 +23,10 @@ import { formatDate, formatTimestamp } from '@/lib/format';
 
 import type { Order, OrderEvent } from './api';
 import {
+  orderLinks,
   DCFP_PATHS,
+  type OrderLinks,
+  type OrderScope,
   eventLabel,
   ORDER_STATUS,
   orderSteps,
@@ -33,7 +36,8 @@ import {
 import { useOrder, useOrderEvents, useReceiveOrder } from './queries';
 import { useOrderNames, type OrderNames } from './useOrderNames';
 
-export default function WarehouseOrderPage() {
+export default function WarehouseOrderPage({ scope = 'district' }: { scope?: OrderScope }) {
+  const links = orderLinks(scope);
   const { id } = useParams<{ id: string }>();
   const order = useOrder(id);
   const events = useOrderEvents(id);
@@ -56,7 +60,7 @@ export default function WarehouseOrderPage() {
     );
   }
   if (!order.data || names.isPending) return <PageSkeleton layout="detail" />;
-  return <OrderDetail order={order.data} events={events.data} names={names} />;
+  return <OrderDetail order={order.data} events={events.data} names={names} links={links} />;
 }
 
 /** Who acts at each step, for the history's role colour. */
@@ -66,10 +70,12 @@ function OrderDetail({
   order,
   events,
   names,
+  links,
 }: {
   order: Order;
   events: readonly OrderEvent[] | undefined;
   names: OrderNames;
+  links: OrderLinks;
 }) {
   const status = ORDER_STATUS[order.order_status];
   const history: ActivityEntry[] = (events ?? []).map((event) => ({
@@ -82,7 +88,7 @@ function OrderDetail({
     order.quantity_received !== null && order.quantity_received !== order.quantity_issued;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="gap-section flex flex-col">
       <DetailHeader
         title={`${names.product(order.condom_id, order.condom_category)} from ${names.warehouseLabel(order.ordered_from_store_id)}`}
         status={<StatusBadge status={status.label} tone={status.tone} />}
@@ -98,14 +104,14 @@ function OrderDetail({
         />
       </DetailHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-6">
+      <div className="gap-section grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="gap-section flex min-w-0 flex-col">
           {order.order_status === 'dispatched' && order.quantity_issued !== null ? (
             <WriteAction>
               <ReceiveCard order={order} issued={order.quantity_issued} names={names} />
             </WriteAction>
           ) : null}
-          <DecisionNotice order={order} names={names} />
+          <DecisionNotice order={order} names={names} national={links.national} />
           {order.order_status === 'on_hold' ? (
             <Alert>
               <AlertTitle>Waiting for stock at the warehouse</AlertTitle>
@@ -201,7 +207,16 @@ const APPROVED = new Set(['reviewed', 'on_hold', 'confirmed']);
  * What the warehouse decided, when the DCFP needs more than the status: why it rejected the
  * order, or that it approved less than was ordered.
  */
-function DecisionNotice({ order, names }: { order: Order; names: OrderNames }) {
+function DecisionNotice({
+  order,
+  names,
+  national = false,
+}: {
+  order: Order;
+  names: OrderNames;
+  /** MOH's read-only view: the district is spoken of, not to. */
+  national?: boolean | undefined;
+}) {
   const warehouse = names.warehouseLabel(order.ordered_from_store_id);
   if (order.unrequested && order.order_status === 'dispatched') {
     return (
@@ -212,7 +227,9 @@ function DecisionNotice({ order, names }: { order: Order; names: OrderNames }) {
             <p className="break-words whitespace-pre-line">{`“${order.comment}”`}</p>
           ) : null}
           <p>
-            Nobody in your district ordered it. Count it when it arrives and record the receipt.
+            {national
+              ? 'Nobody in the district ordered it. The district counts it when it arrives and records the receipt.'
+              : 'Nobody in your district ordered it. Count it when it arrives and record the receipt.'}
           </p>
         </AlertDescription>
       </Alert>
@@ -226,16 +243,20 @@ function DecisionNotice({ order, names }: { order: Order; names: OrderNames }) {
           <p className="break-words whitespace-pre-line">
             {order.rejection_reason ?? 'No reason was given.'}
           </p>
-          <p>
-            Nothing will be dispatched.{' '}
-            <Link
-              href={DCFP_PATHS.newOrderFor(order.condom_category)}
-              className="font-medium underline underline-offset-4"
-            >
-              Place a new order
-            </Link>{' '}
-            if you still need this stock.
-          </p>
+          {national ? (
+            <p>Nothing will be dispatched.</p>
+          ) : (
+            <p>
+              Nothing will be dispatched.{' '}
+              <Link
+                href={DCFP_PATHS.newOrderFor(order.condom_category)}
+                className="font-medium underline underline-offset-4"
+              >
+                Place a new order
+              </Link>{' '}
+              if you still need this stock.
+            </p>
+          )}
         </AlertDescription>
       </Alert>
     );

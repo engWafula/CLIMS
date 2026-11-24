@@ -52,9 +52,9 @@ interface ReportPageProps {
 /** A reporter's monthly report: fill it in, have it checked, send it; then a read-only copy. */
 export default function ReportPage({ workspace, linkTo = (path) => path }: ReportPageProps) {
   const { id } = useParams<{ id: string }>();
-  const report = useReport(id);
+  const report = useReport(id, true);
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <SampleDataNotice subject="The report figures" />
       <RecordView
         query={report}

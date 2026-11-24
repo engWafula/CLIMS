@@ -1,7 +1,7 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
-import { useMemo, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 import { AppShell } from '@/components/layout/AppShell';
 import { useCurrentUser } from '@/features/auth/hooks';
@@ -55,10 +55,25 @@ function SignedInShell({ children }: AppFrameProps) {
   useCurrentUserSync();
   const storage = useAppStorage();
   const pathname = usePathname();
+  const router = useRouter();
   const user = useCurrentUser();
   const access = useWebAccess();
   const can = useCan();
   const home = useHomeWorkspace();
+  const userId = user?.id;
+  const previousUserId = useRef(userId);
+  const previousAccess = useRef(access);
+  useEffect(() => {
+    const changedAccount = previousUserId.current !== userId;
+    const currentWorkspace = locate(workspaces, pathname).workspace.id;
+    const lostWorkspace =
+      accessTo(previousAccess.current, currentWorkspace) !== null &&
+      accessTo(access, currentWorkspace) === null;
+    previousUserId.current = userId;
+    previousAccess.current = access;
+    // A changed account or role should not leave this tab in someone else's workspace.
+    if (home && (changedAccount || lostWorkspace)) router.replace(home.basePath);
+  }, [userId, access, home, pathname, router]);
 
   const canOpenDcfp = accessTo(access, 'dcfp') !== null;
   const canOpenWarehouse = accessTo(access, 'warehouse') !== null;
@@ -94,9 +109,13 @@ function SignedInShell({ children }: AppFrameProps) {
   if (blocked === 'workspace') {
     content = <NotYourWorkspace workspace={target.workspace} home={home} />;
     fallbackTitle = 'Not part of your work';
-  } else if (blocked === 'permission' && target.page) {
-    content = <NoPermission page={target.page} home={home} />;
-    fallbackTitle = target.page.title;
+  } else if (blocked === 'permission') {
+    // A detail inherits the permission of its parent list, which may have been hidden entirely.
+    const page = target.page ?? target.item?.pages[0];
+    if (page) {
+      content = <NoPermission page={page} home={home} />;
+      fallbackTitle = target.detail?.label ?? page.title;
+    }
   }
 
   const readOnly = level === 'read' && blocked === null;

@@ -328,6 +328,9 @@ func (h *Handler) RevokeUserSessions(c fiber.Ctx) error {
 	if _, err = h.Repo.GetUserByID(c.Context(), id); err != nil {
 		return accessError(c, err)
 	}
+	if refused, refuseErr := h.refuseAdminChange(c, id, nil); refused {
+		return refuseErr
+	}
 	count, err := h.Repo.RevokeAllSessions(c.Context(), id)
 	if err != nil {
 		return response.Error(c, 500, "failed to revoke sessions", nil)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { sessionEnded, sessionStarted } from '@/features/auth/authSlice';
+import { sessionEnded, sessionStarted, userRefreshed } from '@/features/auth/authSlice';
 import { createSessionStore, type Session } from '@/features/auth/session';
 import { createMemoryStorage } from '@/lib/storage/jsonStorage';
 
@@ -50,6 +50,18 @@ describe('createAppStore', () => {
 
     store.dispatch(sessionEnded());
     expect(storage.getItem('clims.session')).toBeNull();
+  });
+
+  it("keeps the signed-in user when a refreshed profile is another account's", () => {
+    const { store } = setup();
+    store.dispatch(sessionStarted(session));
+
+    // A /auth/me cached before another tab signed in as someone else.
+    store.dispatch(userRefreshed({ ...session.user, id: '5', username: 'okello' }));
+    expect(store.getState().auth.session?.user.username).toBe('nakato');
+
+    store.dispatch(userRefreshed({ ...session.user, roleNames: ['dfcp'] }));
+    expect(store.getState().auth.session?.user.roleNames).toEqual(['dfcp']);
   });
 
   it('gives each store its own state', () => {

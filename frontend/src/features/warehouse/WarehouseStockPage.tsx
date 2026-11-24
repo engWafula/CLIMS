@@ -65,9 +65,10 @@ import { useMovementLedger, useStoreSummary } from './stockQueries';
 import { StoreSwitch } from './StoreSwitch';
 import {
   dispatchBreakdown,
-  formatAmounts,
   formatMonths,
   formatPercent,
+  formatStock,
+  isPieces,
   nextExpiry,
   pendingBreakdown,
   pendingOrders,
@@ -75,6 +76,7 @@ import {
   periodFrom,
   periodPhrase,
   periodRange,
+  productName,
   stockCover,
   successBreakdown,
   successRate,
@@ -144,18 +146,43 @@ function Flagged({ value, tone }: { value: number; tone: 'warning' | 'destructiv
   );
 }
 
-/** Per-unit amounts on separate lines, for a footer total: units are never added together. */
+/**
+ * Per-unit amounts on separate lines, for a footer total: units are never added together. Pieces
+ * go unnamed; an old record's other unit keeps its name.
+ */
 function UnitTotals({ amounts }: { amounts: readonly UnitAmount[] }) {
   if (amounts.length === 0) return <span className="text-muted-foreground">0</span>;
   return (
     <span className="flex flex-col items-end text-xs leading-4">
       {amounts.map((amount) => (
         <span key={amount.unit} className="whitespace-nowrap">
-          {formatNumber(amount.quantity)}{' '}
-          <span className="text-muted-foreground font-normal">{amount.unit}</span>
+          {formatNumber(amount.quantity)}
+          {isPieces(amount.unit) ? null : (
+            <span className="text-muted-foreground font-normal"> {amount.unit}</span>
+          )}
         </span>
       ))}
     </span>
+  );
+}
+
+/** A product's name, and under it its unit when that is not pieces. */
+function ProductCell({
+  product,
+  unit,
+  className,
+}: {
+  product: string;
+  unit: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('min-w-0', className)}>
+      <div className="truncate" title={product}>
+        {product}
+      </div>
+      {isPieces(unit) ? null : <div className="text-muted-foreground text-xs">{unit}</div>}
+    </div>
   );
 }
 
@@ -215,14 +242,9 @@ function productColumns(period: Period): DataTableColumn<ProductSummary>[] {
     {
       id: 'product',
       header: 'Product',
-      value: (row) => `${row.product} ${row.unit}`,
+      value: (row) => productName(row.product, row.unit),
       cell: (row) => (
-        <div className="max-w-52 min-w-0">
-          <div className="truncate font-medium" title={row.product}>
-            {row.product}
-          </div>
-          <div className="text-muted-foreground text-xs">{row.unit}</div>
-        </div>
+        <ProductCell product={row.product} unit={row.unit} className="max-w-52 font-medium" />
       ),
     },
     {
@@ -345,15 +367,8 @@ const batchColumns: DataTableColumn<StockBatch>[] = [
   {
     id: 'product',
     header: 'Product',
-    value: (batch) => `${batch.product} ${batch.unit}`,
-    cell: (batch) => (
-      <div className="max-w-56 min-w-0">
-        <div className="truncate" title={batch.product}>
-          {batch.product}
-        </div>
-        <div className="text-muted-foreground text-xs">{batch.unit}</div>
-      </div>
-    ),
+    value: (batch) => productName(batch.product, batch.unit),
+    cell: (batch) => <ProductCell product={batch.product} unit={batch.unit} className="max-w-56" />,
   },
   {
     id: 'expires',
@@ -418,7 +433,7 @@ function ProductBatches({
     <div className="bg-card rounded-card max-w-3xl overflow-hidden border">
       <DataTable
         variant="embedded"
-        label={`Batches of ${product.product}, ${product.unit}`}
+        label={`Batches of ${productName(product.product, product.unit)}`}
         columns={PRODUCT_BATCH_COLUMNS}
         rows={held}
         getRowId={(batch) => batch.id}
@@ -490,12 +505,15 @@ function movementColumns(href: (path: string) => string): DataTableColumn<Moveme
     {
       id: 'product',
       header: 'Product',
-      value: (movement) => movement.product,
-      cell: (movement) => (
-        <span className="block max-w-56 truncate" title={`${movement.product} · ${movement.unit}`}>
-          {movement.product} · {movement.unit}
-        </span>
-      ),
+      value: (movement) => productName(movement.product, movement.unit),
+      cell: (movement) => {
+        const name = productName(movement.product, movement.unit);
+        return (
+          <span className="block max-w-56 truncate" title={name}>
+            {name}
+          </span>
+        );
+      },
     },
     {
       id: 'change',
@@ -520,7 +538,7 @@ function movementColumns(href: (path: string) => string): DataTableColumn<Moveme
 
 const VIEW_DESCRIPTION: Record<View, (period: Period) => string> = {
   products: (period) =>
-    `Each product in each unit; open one to see its batches. Registered and dispatched cover the ${periodPhrase(period)}; expiring means under three months left; stock cover is free stock over the average month of dispatches in the last 90 days.`,
+    `Open a product to see its batches. Registered and dispatched cover the ${periodPhrase(period)}; expiring means under three months left; stock cover is free stock over the average month of dispatches in the last 90 days.`,
   batches: () =>
     "Each product's batches in the order they are dispatched, earliest expiry first. Expired batches can't leave; write them off once they are disposed of.",
   movements: () =>
@@ -599,6 +617,8 @@ export default function WarehouseStockPage() {
   };
   // Sending stock to a district before it orders is an order step, so it needs orders:process.
   const canDispatch = can('orders:process');
+  // Registering, correcting and deleting stock need inventory:manage, as the API checks.
+  const canManage = !readOnly && can('inventory:manage');
   const [dispatching, setDispatching] = useState(() => params.get('dispatch') === '1');
   const [dispatchProduct, setDispatchProduct] = useState<string | null>(null);
   const openDispatch = (productId: string | null = null) => {
@@ -619,14 +639,14 @@ export default function WarehouseStockPage() {
     orders &&
     Object.values(orders).every((value) => value === 0 || value === null);
   const amounts = (pick: (row: ProductSummary) => number, none?: string) =>
-    products ? formatAmounts(totalsByUnit(products, pick), none) : '—';
+    products ? formatStock(totalsByUnit(products, pick), none) : '—';
   /** A headline amount: the unit holding most as the figure, any other units on a line under it. */
   const figure = (pick: (row: ProductSummary) => number, none?: string) => {
     if (!products) return { value: '—' };
     const [first, ...rest] = totalsByUnit(products, pick);
     return {
-      value: formatAmounts(first ? [first] : [], none),
-      ...(rest.length > 0 ? { extra: formatAmounts(rest) } : {}),
+      value: formatStock(first ? [first] : [], none),
+      ...(rest.length > 0 ? { extra: formatStock(rest) } : {}),
     };
   };
   const rate = orders ? successRate(orders) : null;
@@ -650,7 +670,7 @@ export default function WarehouseStockPage() {
     return byProduct;
   }, [batches.data]);
 
-  const registerButton = (
+  const registerButton = canManage ? (
     <WriteAction>
       <Button
         onClick={() => {
@@ -662,7 +682,7 @@ export default function WarehouseStockPage() {
         Register stock
       </Button>
     </WriteAction>
-  );
+  ) : undefined;
   const dispatchButton = canDispatch ? (
     <WriteAction>
       <Button
@@ -719,7 +739,7 @@ export default function WarehouseStockPage() {
         </div>
       </div>
 
-      <section aria-labelledby="stock-figures">
+      <section aria-labelledby="stock-figures" className="@container">
         <h2 id="stock-figures" className="sr-only">
           {code} stock at a glance
         </h2>
@@ -744,9 +764,10 @@ export default function WarehouseStockPage() {
             />
           </div>
         ) : (
-          // Six figures read as two rows of three, three rows of two, or one column on a phone
-          // (an amount in several units needs the width), never 5 + 1.
-          <div className="grid grid-cols-1 gap-3 min-[30rem]:grid-cols-2 lg:grid-cols-3">
+          // Six figures read as one row where each card has about 200px, then two rows of three,
+          // three rows of two, or one column on a phone; never 5 + 1. The section's own width
+          // decides, so a collapsed sidebar gives the row back its room.
+          <div className="grid grid-cols-1 gap-3 @md:grid-cols-2 @3xl:grid-cols-3 @7xl:grid-cols-6">
             <StatCard
               label="On hand"
               {...figure((row) => row.on_hand)}
@@ -816,7 +837,8 @@ export default function WarehouseStockPage() {
         )}
       </section>
 
-      <div className="gap-section grid xl:grid-cols-2">
+      {/* Each card is as tall as what it holds, so a short attention list leaves no empty card. */}
+      <div className="gap-section grid items-start xl:grid-cols-2">
         <ShelfLifeOverview
           code={code}
           units={shelfLife}
@@ -889,7 +911,7 @@ export default function WarehouseStockPage() {
                 isLoading={waiting || batches.isPending}
               />
             )}
-            expandLabel={(row) => `Show batches of ${row.product}, ${row.unit}`}
+            expandLabel={(row) => `Show batches of ${productName(row.product, row.unit)}`}
             isLoading={figuresLoading}
             error={summary.error}
             onRetry={() => void summary.refetch()}
@@ -899,19 +921,23 @@ export default function WarehouseStockPage() {
             emptyDescription="Register the first stock, batch by batch, and each product appears here."
             emptyAction={readOnly ? undefined : registerButton}
             rowActions={
-              readOnly
+              readOnly || (!canManage && !canDispatch)
                 ? undefined
                 : (row) => (
                     <RowActions
-                      label={`Actions for ${row.product}, ${row.unit}`}
+                      label={`Actions for ${productName(row.product, row.unit)}`}
                       actions={[
-                        {
-                          label: 'Register stock…',
-                          icon: PackagePlus,
-                          onSelect: () => {
-                            openRegister(row.condom_id);
-                          },
-                        },
+                        ...(canManage
+                          ? [
+                              {
+                                label: 'Register stock…',
+                                icon: PackagePlus,
+                                onSelect: () => {
+                                  openRegister(row.condom_id);
+                                },
+                              },
+                            ]
+                          : []),
                         ...(canDispatch
                           ? [
                               {
@@ -969,7 +995,7 @@ export default function WarehouseStockPage() {
             }
             emptyAction={band === 'all' && !readOnly ? registerButton : undefined}
             rowActions={
-              readOnly
+              !canManage
                 ? undefined
                 : (batch) => (
                     <RowActions

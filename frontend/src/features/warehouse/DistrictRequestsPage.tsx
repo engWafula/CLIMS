@@ -9,7 +9,7 @@ import { DataTable, type DataTableColumn } from '@/components/data-table/DataTab
 import { RowActions } from '@/components/data-table/RowActions';
 import { FilterTabs } from '@/components/FilterTabs';
 import { StatusBadge } from '@/components/StatusBadge';
-import { useDistrictContext } from '@/features/district/DistrictContext';
+import { DistrictSelect, useDistrictContext } from '@/features/district/DistrictContext';
 import type { Order } from '@/features/orders/api';
 import { formatTimestamp } from '@/lib/format';
 
@@ -115,8 +115,11 @@ export default function DistrictRequestsPage() {
   const error = stores.error ?? orders.error;
 
   return (
-    <div className="flex flex-col gap-4">
-      <StoreSwitch store={code} hrefFor={(other) => withStore(WAREHOUSE_PATHS.requests, other)} />
+    <div className="gap-section flex flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <StoreSwitch store={code} hrefFor={(other) => withStore(WAREHOUSE_PATHS.requests, other)} />
+        <DistrictSelect />
+      </div>
       <FilterTabs
         label="Filter orders by status"
         value={filter.value}

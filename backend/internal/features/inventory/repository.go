@@ -68,8 +68,9 @@ type StockFilter struct {
 	BatchID *string
 }
 
-// stock lists store balances: on hand, reserved for confirmed orders, available, and incoming from
-// dispatched replenishments.
+// stock lists store balances: on hand, reserved for confirmed orders, available, and incoming: what a
+// warehouse has dispatched to the store and it has not received yet. A hotspot order names the district
+// store on both sides, so it is never incoming.
 // shortcut: a store with stock in transit but no balance row yet shows no incoming line; the summary
 // counts it under in_transit. Upgrade by listing transit-only rows if districts report missing stock.
 func (r *Repository) stock(ctx context.Context, access scope, f StockFilter) ([]StockBalance, error) {
@@ -78,7 +79,7 @@ func (r *Repository) stock(ctx context.Context, access scope, f StockFilter) ([]
 			COALESCE((SELECT sum(o.quantity_issued) FROM orders o
 				WHERE o.ordered_for_store_id = b.store_id AND o.condom_id = b.condom_id
 					AND o.unit_of_measure_id = b.unit_of_measure_id AND o.order_status = 'dispatched'
-					AND o.parent_order_id IS NOT NULL), 0),
+					AND o.hot_spot_id IS NULL), 0),
 			b.updated_at
 		FROM order_store_stock b
 		JOIN stores s ON s.id = b.store_id

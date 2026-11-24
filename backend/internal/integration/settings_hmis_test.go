@@ -44,6 +44,8 @@ func testSettingsAndHMIS(t *testing.T, pool *pgxpool.Pool,
 	past["effective_from"] = yesterday
 	request("POST", "/reports/settings", past, admin, 422)
 	request("POST", "/reports/settings", setting(nil, "daily", 3, 90), admin, 422)
+	// A store that does not exist is refused, not a server error.
+	request("POST", "/reports/settings", setting("6f0f6e8a-1d2b-4c3d-8e9f-0a1b2c3d4e5f", "weekly", 3, 90), admin, 422)
 	request("POST", "/reports/settings", setting(nil, "weekly", 3, 90), districtToken, 403) // no reports:configure yet
 	national := data("POST", "/reports/settings", setting(nil, "weekly", 3, 90), admin, 201)
 	expect("national", national, map[string]any{"source": "national", "set_by_id": national["set_by_id"]})

@@ -197,7 +197,7 @@ function AcknowledgeForm({
 export function StockoutScreen({ id }: { id: string }) {
   const nav = useNav();
   const me = useMe();
-  const { s } = useStore();
+  const { s, updateApiOrder } = useStore();
   const pend = usePending(id);
   const [d, setD] = useState<StockoutDetail | null>(null);
   const [load, setLoad] = useState<Load>("loading");
@@ -213,6 +213,10 @@ export function StockoutScreen({ id }: { id: string }) {
           if (!live) return;
           setD(fresh);
           setLoad("ok");
+          // The phone's copy (and its chip in the request lists) follows what the district did.
+          updateApiOrder(
+            toLocalOrder(fresh, me.name, me.role === "hm" ? "Hotspot manager" : "VHT"),
+          );
         })
         .catch((e: unknown) => {
           if (!live) return;
@@ -230,7 +234,7 @@ export function StockoutScreen({ id }: { id: string }) {
       return () => {
         live = false;
       };
-    }, [id]),
+    }, [id, me.name, me.role, updateApiOrder]),
   );
 
   if (!d) {

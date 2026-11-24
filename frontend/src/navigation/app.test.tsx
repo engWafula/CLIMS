@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs';
 
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import { sessionEnded } from '@/features/auth/authSlice';
 import { AppUnderTest, routedPaths } from '@/test/AppUnderTest';
+import type { RecordedRequest } from '@/test/fakeAdapter';
 import { testRouter } from '@/test/navigation';
 import { renderApp, sessionWith } from '@/test/renderApp';
 
-import { webAccessFor } from './access';
-import { canReturnTo, signInHref } from './guards';
+import { signInHref } from './guards';
 import { allPaths } from './navigation';
 import { HOME_PATH, PUBLIC_PATHS } from './paths';
 import { workspaces } from './workspaces';
@@ -106,6 +106,31 @@ describe('route guard', () => {
 });
 
 describe('signing in', () => {
+  it.each([
+    ['dfcp', '/dcfp'],
+    ['jms', '/warehouse'],
+    ['nms', '/warehouse'],
+    ['admin', '/moh/users'],
+  ])('returns %s to an accessible workspace after sign-in', async (role, destination) => {
+    renderApp(routes, {
+      route: '/sign-in?from=%2Fmoh%2Fusers',
+      session: sessionWith(['users:read'], [role]),
+    });
+    await waitFor(() => {
+      expect(testRouter.location).toBe(destination);
+    });
+  });
+
+  it('keeps a permitted deep link and its query after sign-in', async () => {
+    renderApp(routes, {
+      route: '/sign-in?from=%2Fdcfp%2Frestock%3Fstatus%3Dheld',
+      session: sessionWith(['orders:read'], ['dfcp']),
+    });
+    await waitFor(() => {
+      expect(testRouter.location).toBe('/dcfp/restock?status=held');
+    });
+  });
+
   it('signs in and lands on the page the visitor originally asked for', async () => {
     const user = userEvent.setup();
     const { store, requests } = renderApp(routes, {
@@ -158,6 +183,72 @@ describe('signing in', () => {
     expect(store.getState().auth.session).toBeNull();
     // What was typed is kept so the user can correct it.
     expect(screen.getByLabelText('Email, username or phone')).toHaveValue('okello@example.org');
+  });
+
+  it.each(['vht', 'hotspot manager', 'delivery agent'])(
+    'keeps a %s off the web: the session is ended and the mobile app named',
+    async (role) => {
+      const user = userEvent.setup();
+      const { store, requests } = renderApp(routes, {
+        route: '/sign-in',
+        replies: [
+          {
+            status: 200,
+            body: {
+              success: true,
+              data: {
+                token: 'field-tok',
+                refresh_token: 'field-refresh',
+                user: { id: 'u-9', username: 'nakato', role: { id: 'r', name: role } },
+              },
+            },
+          },
+          { status: 200, body: { success: true, message: 'signed out' } },
+        ],
+      });
+
+      await user.type(await screen.findByLabelText('Email, username or phone'), 'nakato');
+      await user.type(screen.getByLabelText('Password'), 'a-test-password');
+      await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+      expect(await screen.findByText('Use the CLIMS mobile app')).toBeInTheDocument();
+      expect(screen.getByText(/work in the mobile app, not on the web/)).toBeInTheDocument();
+      expect(store.getState().auth.session).toBeNull();
+      expect(testRouter.location).toBe('/sign-in');
+      // The session the API opened is ended at once, with its own token.
+      await waitFor(() => {
+        expect(requests[1]).toMatchObject({
+          method: 'POST',
+          url: '/auth/logout',
+          authorization: 'Bearer field-tok',
+        });
+      });
+    },
+  );
+
+  it('keeps a field account off the web when it comes from the portal', async () => {
+    const { store, requests } = renderApp(routes, {
+      route: '/sso/complete',
+      replies: [
+        {
+          status: 200,
+          body: {
+            success: true,
+            data: {
+              token: 'portal-tok',
+              user: { id: 'u-9', username: 'nakato', role: { id: 'r', name: 'vht' } },
+            },
+          },
+        },
+        { status: 200, body: { success: true, message: 'signed out' } },
+      ],
+    });
+
+    expect(await screen.findByText('Use the CLIMS mobile app')).toBeInTheDocument();
+    expect(testRouter.location).toBe('/sign-in?sso_error=mobile');
+    expect(store.getState().auth.session).toBeNull();
+    expect(requests.map((request) => request.url)).toEqual(['/auth/sso/exchange', '/auth/logout']);
+    expect(requests[1]?.authorization).toBe('Bearer portal-tok');
   });
 
   it('does not call the API until both fields are filled in', async () => {
@@ -335,6 +426,53 @@ describe('theme', () => {
 });
 
 describe('signing out', () => {
+  it('starts a different role at its own workspace after an administrator signs out', async () => {
+    const user = userEvent.setup();
+    const reply = (request: RecordedRequest) => {
+      if (request.url === '/auth/login')
+        return {
+          status: 200,
+          body: {
+            success: true,
+            data: {
+              token: 'dcfp-token',
+              user: {
+                id: '2',
+                username: 'district',
+                role: { name: 'dfcp', permissions: ['orders:read'] },
+              },
+            },
+          },
+        };
+      if (request.url === '/auth/me')
+        return {
+          status: 200,
+          body: {
+            success: true,
+            data: {
+              id: '2',
+              username: 'district',
+              roles: [{ name: 'dfcp', permissions: ['orders:read'] }],
+            },
+          },
+        };
+      return { status: 200, body: { success: true, data: [] } };
+    };
+    renderApp(routes, { route: '/moh/users', signedIn: true, replies: [reply] });
+    await screen.findByRole('heading', { name: 'User management' });
+    await user.click(screen.getByRole('button', { name: /account menu/i }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
+    await user.type(await screen.findByLabelText('Email, username or phone'), 'district');
+    await user.type(screen.getByLabelText('Password'), 'password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => {
+      expect(testRouter.location).toBe('/dcfp');
+    });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'District dashboard' }),
+    ).toBeInTheDocument();
+  });
+
   it('ends the session, clears storage and returns to sign-in', async () => {
     const user = userEvent.setup();
     const { store, storage, requests } = renderApp(routes, {
@@ -360,6 +498,21 @@ describe('signing out', () => {
     });
   });
 
+  it('remembers a new protected link opened after an explicit sign-out', async () => {
+    const user = userEvent.setup();
+    renderApp(routes, { route: '/moh/users', signedIn: true });
+    await screen.findByRole('heading', { name: 'User management' });
+    await user.click(screen.getByRole('button', { name: /account menu/i }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
+    await screen.findByRole('heading', { name: 'Sign in' });
+    act(() => {
+      testRouter.push('/dcfp/stockouts');
+    });
+    await waitFor(() => {
+      expect(testRouter.location).toBe('/sign-in?from=%2Fdcfp%2Fstockouts');
+    });
+  });
+
   it('still signs out locally when the server cannot be reached', async () => {
     const user = userEvent.setup();
     const { store } = renderApp(routes, {
@@ -374,24 +527,5 @@ describe('signing out', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(store.getState().auth.session).toBeNull();
-  });
-});
-
-describe('returning after sign-in', () => {
-  it("only returns to a remembered page in the new user's own workspace", () => {
-    const dcfp = webAccessFor(['dfcp']);
-    expect(canReturnTo('/dcfp/orders?page=2', dcfp)).toBe(true);
-    expect(canReturnTo('/moh/users', dcfp)).toBe(false);
-    expect(canReturnTo('/dcfp/orders', webAccessFor(['admin']))).toBe(true);
-  });
-
-  it('sends a user to their own home, not a page left by someone with another role', async () => {
-    renderApp(routes, {
-      route: '/sign-in?from=%2Fmoh%2Fusers',
-      session: sessionWith(['users:read'], ['dfcp']),
-    });
-    await waitFor(() => {
-      expect(testRouter.location).toMatch(/^\/dcfp/);
-    });
   });
 });

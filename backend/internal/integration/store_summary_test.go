@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"clims-backend/internal/features/stock"
 )
 
 // testStoreSummary runs last in the order workflow: it reads the warehouse's summary against the database,
@@ -17,8 +19,9 @@ func testStoreSummary(t *testing.T, pool *pgxpool.Pool,
 ) {
 	t.Helper()
 	ctx := context.Background()
-	// The period and the database count by the same UTC day, whatever the clock says in Kampala.
-	midnight := time.Now().UTC().Truncate(24 * time.Hour)
+	// The period is today's Kampala calendar day, cut at Kampala midnight, as the reports count.
+	now := time.Now().In(stock.Kampala)
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, stock.Kampala)
 	today := midnight.Format(time.DateOnly)
 	summary := func(store, token string) map[string]any {
 		t.Helper()

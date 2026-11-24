@@ -55,12 +55,13 @@ import {
 } from '@/features/warehouse/stock';
 import { useMovementLedger, useStoreSummary } from '@/features/warehouse/stockQueries';
 import {
-  formatAmounts,
   formatMonths,
+  formatStock,
   PERIODS,
   periodFrom,
   periodPhrase,
   periodRange,
+  productName,
   stockCover,
   totalsByUnit,
 } from '@/features/warehouse/summary';
@@ -72,9 +73,10 @@ const VIEWS = [
   { value: 'batches', label: 'Batches' },
   { value: 'movements', label: 'Movements' },
 ] as const;
+// Stock is counted in pieces, so a unit shows only for another one an old record holds:
+// "Male condoms, Carton" (as on the warehouse stock page).
 const productColumns: DataTableColumn<ProductSummary>[] = [
-  { id: 'product', header: 'Product', value: (row) => row.product },
-  { id: 'unit', filter: 'select', header: 'Unit', value: (row) => row.unit },
+  { id: 'product', header: 'Product', value: (row) => productName(row.product, row.unit) },
   ...(
     [
       ['on_hand', 'On hand'],
@@ -109,9 +111,8 @@ const productColumns: DataTableColumn<ProductSummary>[] = [
   },
 ];
 const batchColumns: DataTableColumn<StockBatch>[] = [
-  { id: 'product', header: 'Product', value: (row) => row.product },
+  { id: 'product', header: 'Product', value: (row) => productName(row.product, row.unit) },
   { id: 'batch', header: 'Batch', value: batchLabel },
-  { id: 'unit', filter: 'select', header: 'Unit', value: (row) => row.unit },
   {
     id: 'on_hand',
     header: 'On hand',
@@ -144,8 +145,7 @@ const movementColumns: DataTableColumn<Movement>[] = [
     value: (row) => row.created_at,
     cell: (row) => formatTimestamp(row.created_at),
   },
-  { id: 'product', header: 'Product', value: (row) => row.product },
-  { id: 'unit', filter: 'select', header: 'Unit', value: (row) => row.unit },
+  { id: 'product', header: 'Product', value: (row) => productName(row.product, row.unit) },
   {
     id: 'reason',
     filter: 'select',
@@ -230,7 +230,7 @@ export default function DistrictStorePage() {
     return `${DCFP_PATHS.store}?${next.toString()}`;
   };
   const amount = (pick: (row: ProductSummary) => number) =>
-    products ? formatAmounts(totalsByUnit(products, pick)) : '—';
+    products ? formatStock(totalsByUnit(products, pick)) : '—';
 
   if (!storeId)
     return (

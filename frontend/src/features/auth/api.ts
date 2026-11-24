@@ -46,8 +46,8 @@ export interface Credentials {
 }
 
 /** Ends the server session behind the current token, so the token is rejected from then on. */
-export async function signOut(http: HttpClient): Promise<void> {
-  await http.post('/auth/logout');
+export async function signOut(http: HttpClient, token?: string): Promise<void> {
+  await http.post('/auth/logout', undefined, token === undefined ? undefined : { token });
 }
 
 /** Exchanges credentials for a session. Wrong credentials reject with an `unauthorized` ApiError. */

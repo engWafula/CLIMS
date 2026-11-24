@@ -95,7 +95,7 @@ function rowOf(name: string) {
 
 describe('HotspotsPage review queue', () => {
   it('shows submissions and their manager', async () => {
-    renderApp(<HotspotsPage workspace="review" />, {
+    renderApp(<HotspotsPage />, {
       signedIn: true,
       replies: [reviewApi([hotspot('submitted')])],
     });
@@ -109,7 +109,7 @@ describe('HotspotsPage review queue', () => {
 
   it('offers activate and reject for a submission, deactivate for an active hotspot', async () => {
     const user = userEvent.setup();
-    renderApp(<HotspotsPage workspace="review" />, {
+    renderApp(<HotspotsPage />, {
       signedIn: true,
       replies: [
         reviewApi([hotspot('submitted'), hotspot('active', { id: 'other', name: 'Pier' })]),
@@ -129,7 +129,7 @@ describe('HotspotsPage review queue', () => {
 
   it('activates a hotspot only with a comment', async () => {
     const user = userEvent.setup();
-    const { requests } = renderApp(<HotspotsPage workspace="review" />, {
+    const { requests } = renderApp(<HotspotsPage />, {
       signedIn: true,
       replies: [reviewApi([hotspot('submitted')])],
     });
@@ -154,7 +154,7 @@ describe('HotspotsPage review queue', () => {
 
   it('keeps the comment and shows the refusal when the decision is no longer allowed', async () => {
     const user = userEvent.setup();
-    renderApp(<HotspotsPage workspace="review" />, {
+    renderApp(<HotspotsPage />, {
       signedIn: true,
       replies: [
         reviewApi([hotspot('submitted')], {
@@ -172,75 +172,6 @@ describe('HotspotsPage review queue', () => {
 
     expect(await within(dialog).findByText('Hotspot was already rejected.')).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Comment/)).toHaveValue('Already mapped');
-  });
-});
-
-describe('HotspotsPage for a VHT', () => {
-  it('shows a rejected submission without review actions', async () => {
-    renderApp(<HotspotsPage workspace="submit" />, {
-      signedIn: true,
-      replies: [list(hotspot('rejected')), list()],
-    });
-
-    await screen.findAllByText('Lake view bar');
-    expect(within(rowOf('Lake view bar')).getByText('rejected')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
-  });
-
-  it('submits a new hotspot with its region, district and subcounty', async () => {
-    const user = userEvent.setup();
-    const { requests } = renderApp(<HotspotsPage workspace="submit" />, {
-      signedIn: true,
-      replies: [
-        (request) => {
-          if (request.url === '/locations/regions') return list({ id: region, name: 'Central' });
-          if (request.url.startsWith('/locations/districts'))
-            return list({ id: district, name: 'Buvuma' });
-          if (request.url.startsWith('/locations/subcounties'))
-            return list({ id: subcounty, name: 'Nairambi' });
-          if (request.method === 'POST') return { status: 201, body: { success: true } };
-          return list();
-        },
-      ],
-    });
-
-    await user.click((await screen.findAllByRole('button', { name: 'Submit hotspot' }))[0]!);
-    const dialog = await screen.findByRole('dialog');
-    const pick = async (label: RegExp, option: string) => {
-      const select = within(dialog).getByRole('combobox', { name: label });
-      await waitFor(() => expect(select).toBeEnabled());
-      await user.click(select);
-      await user.click(await screen.findByRole('option', { name: option }));
-    };
-    await user.type(within(dialog).getByLabelText(/Hotspot name/), 'Lake view bar');
-    await user.type(within(dialog).getByLabelText(/Type of place/), 'Bar');
-    await pick(/Region/, 'Central');
-    await pick(/District/, 'Buvuma');
-    await pick(/Subcounty/, 'Nairambi');
-    await user.type(within(dialog).getByLabelText(/Hotspot manager/), 'Okello James');
-    await user.type(within(dialog).getByLabelText(/Manager's phone/), '0772 000 000');
-    await pick(/Condom dispenser/, 'No');
-    await user.type(within(dialog).getByLabelText(/Latitude/), '0.33');
-    await user.type(within(dialog).getByLabelText(/Longitude/), '32.6');
-    await user.click(within(dialog).getByRole('button', { name: 'Submit hotspot' }));
-
-    await waitFor(() => {
-      expect(requests.find((request) => request.method === 'POST')).toMatchObject({
-        url: '/hotspots',
-        body: {
-          name: 'Lake view bar',
-          type: 'Bar',
-          region_id: region,
-          district_id: district,
-          subcounty_id: subcounty,
-          contact_person_name: 'Okello James',
-          contact_person_phone: '+256772000000',
-          has_condom_dispenser: false,
-          latitude: 0.33,
-          longitude: 32.6,
-        },
-      });
-    });
   });
 });
 

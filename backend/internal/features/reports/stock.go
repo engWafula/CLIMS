@@ -81,7 +81,7 @@ func (r *Repository) stockReport(ctx context.Context, s scope, f SupplyFilter, n
 			c.category, b.unit_of_measure_id, um.name AS unit, b.on_hand, b.reserved,
 			coalesce((SELECT sum(o.quantity_issued) FROM orders o WHERE o.ordered_for_store_id = b.store_id
 				AND o.condom_id = b.condom_id AND o.unit_of_measure_id = b.unit_of_measure_id
-				AND o.order_status = 'dispatched'), 0) AS in_transit,
+				AND o.order_status = 'dispatched' AND o.hot_spot_id IS NULL), 0) AS in_transit,
 			CASE WHEN c.pieces_per_unit IS NOT NULL AND b.unit_of_measure_id = c.unit_id THEN c.pieces_per_unit END AS per_unit,
 			coalesce((SELECT sum(m.quantity) FROM inventory_movements m WHERE m.store_id = b.store_id
 				AND m.condom_id = b.condom_id AND m.unit_of_measure_id = b.unit_of_measure_id), 0) AS ledger,
@@ -92,7 +92,14 @@ func (r *Repository) stockReport(ctx context.Context, s scope, f SupplyFilter, n
 				AND m.reason IN ('dispatch', 'hotspot_delivery') AND m.created_at >= $7 AND m.created_at < $8), 0) AS issued,
 			coalesce(batch.expired, 0) AS expired, coalesce(batch.unknown, 0) AS unknown_expiry,
 			coalesce(batch.total, 0) AS batch_total
-		FROM order_store_stock b
+		-- A store's first shipment of a product is on the way before it has a balance to show it under.
+		FROM (SELECT store_id, condom_id, unit_of_measure_id, on_hand, reserved FROM order_store_stock
+			UNION
+			SELECT o.ordered_for_store_id, o.condom_id, o.unit_of_measure_id, 0, 0 FROM orders o
+			WHERE o.order_status = 'dispatched' AND o.hot_spot_id IS NULL AND o.condom_id IS NOT NULL
+				AND o.unit_of_measure_id IS NOT NULL AND o.ordered_for_store_id IS NOT NULL
+				AND NOT EXISTS (SELECT 1 FROM order_store_stock x WHERE x.store_id = o.ordered_for_store_id
+					AND x.condom_id = o.condom_id AND x.unit_of_measure_id = o.unit_of_measure_id)) b
 		JOIN stores s ON s.id = b.store_id
 		LEFT JOIN districts d ON d.id = s.district_id
 		JOIN condoms c ON c.id = b.condom_id

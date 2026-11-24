@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { parseBody, parseList, type HttpClient } from '@/lib/api';
+import { parseBody, parseList, readAllPages, type HttpClient } from '@/lib/api';
 
 /*
  * Orders against the Go API (docs/modules/orders.md), shared by the two stores an order joins.
@@ -98,9 +98,23 @@ export type Warehouse = z.infer<typeof storeSchema>;
 
 /* Reads. */
 
-// shortcut: the 100 newest; page with `offset` when a store has more.
+/**
+ * Every order the user can see, newest first, read 100 at a time (the API's largest page). The lists,
+ * counts and tasks filter it by store and status, so stopping at the newest 100 would hide older open
+ * orders once a warehouse has handled that many.
+ */
 export async function listOrders(http: HttpClient, signal?: AbortSignal): Promise<Order[]> {
-  return parseList(orderSchema, await http.get('/orders?limit=100', { signal }), 'orders');
+  const { items } = await readAllPages(
+    async (offset, limit) =>
+      parseList(
+        orderSchema,
+        await http.get(`/orders?limit=${limit}&offset=${offset}`, { signal }),
+        'orders',
+      ),
+    // Up to 10,000 orders, three pages at a time.
+    { pageSize: 100, maxPages: 100, pagesAtOnce: 3 },
+  );
+  return items;
 }
 
 export async function getOrder(http: HttpClient, id: string, signal?: AbortSignal): Promise<Order> {

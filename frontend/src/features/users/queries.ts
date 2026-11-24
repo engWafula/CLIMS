@@ -139,8 +139,9 @@ export function useRevokeUserSessions(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => revokeUserSessions(http, userId),
+    // ['users'] also covers this user's sessions and the list's device counts.
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: accessKeys.userSessions(userId) });
+      await queryClient.invalidateQueries({ queryKey: accessKeys.users });
     },
     meta: { handlesOwnErrors: true },
   });

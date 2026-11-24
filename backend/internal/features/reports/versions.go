@@ -139,7 +139,8 @@ func sendTable(c fiber.Ctx, t Table, format string) error {
 
 func (h *Handler) buildError(c fiber.Ctx, err error) error {
 	var invalid errInvalid
-	if errors.As(err, &invalid) {
+	var internal errInternal
+	if errors.As(err, &invalid) && !errors.As(err, &internal) {
 		return response.Error(c, 400, err.Error(), nil)
 	}
 	slog.Error("report build failed", "error", err)

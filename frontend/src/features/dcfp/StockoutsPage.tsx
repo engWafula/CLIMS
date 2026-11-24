@@ -11,19 +11,21 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/features/auth/queries';
 import { useCurrentUser } from '@/features/auth/hooks';
+import { useDistrictContext } from '@/features/district/DistrictContext';
 import { EMPTY_VALUE, formatNumber, formatTimestamp } from '@/lib/format';
 import { useReadOnly } from '@/navigation/useAccess';
 
 import type { StockoutReport } from './api';
 import {
   contactOf,
-  DCFP_PATHS,
+  stockoutLinks,
   isStockoutClosed,
   matchesStockoutFilter,
   placeOf,
   STOCKOUT_FILTERS,
   STOCKOUT_STATUS,
   stockoutStatus,
+  type OrderScope,
   type StockoutFilter,
 } from './orders';
 import { useStockouts } from './queries';
@@ -66,20 +68,27 @@ const EMPTY: Record<StockoutFilter, { title: string; description: string }> = {
  * Stockout notifications from the district's hotspots, open ones first. Each row leads to the
  * request, where the DCFP sends district stock or orders more from a warehouse.
  */
-export default function StockoutsPage() {
+export default function StockoutsPage({ scope = 'district' }: { scope?: OrderScope }) {
+  const links = stockoutLinks(scope);
   const reports = useStockouts();
+  const district = useDistrictContext()?.district ?? null;
   const params = useSearchParams();
   const readOnly = useReadOnly();
   const can = useCan();
   const storeId = useCurrentUser()?.store_id;
   const filter: StockoutFilter =
     STOCKOUT_FILTERS.find((item) => item.value === params.get('status'))?.value ?? 'open';
-  const rows = reports.data?.filter((report) => matchesStockoutFilter(report, filter));
+  // MOH's national list follows the district menu above it.
+  const inDistrict =
+    links.national && district
+      ? reports.data?.filter((report) => report.hot_spot.district === district)
+      : reports.data;
+  const rows = inDistrict?.filter((report) => matchesStockoutFilter(report, filter));
   const tabs = STOCKOUT_FILTERS.map((tab) => ({
     ...tab,
-    count: reports.data?.filter((report) => matchesStockoutFilter(report, tab.value)).length,
+    count: inDistrict?.filter((report) => matchesStockoutFilter(report, tab.value)).length,
   }));
-  const canSend = !readOnly && can('orders:supply_hotspots');
+  const canSend = !readOnly && !links.national && can('orders:supply_hotspots');
   // With no reports at all, say so whatever the filter; otherwise say what the filter keeps.
   const empty = reports.data?.length === 0 ? EMPTY.all : EMPTY[filter];
 
@@ -92,7 +101,7 @@ export default function StockoutsPage() {
         cell: (report) => (
           <div className="min-w-0">
             <Link
-              href={DCFP_PATHS.stockout(report.id)}
+              href={links.detail(report.id)}
               className="font-medium underline-offset-4 hover:underline"
             >
               {report.hot_spot.name}
@@ -103,6 +112,17 @@ export default function StockoutsPage() {
           </div>
         ),
       },
+      ...(links.national
+        ? [
+            {
+              id: 'district',
+              filter: 'select' as const,
+              header: 'District',
+              value: (report: StockoutReport) => report.hot_spot.district ?? '',
+              cell: (report: StockoutReport) => report.hot_spot.district ?? EMPTY_VALUE,
+            },
+          ]
+        : []),
       { id: 'product', header: 'Out of', value: (report) => report.product },
       {
         id: 'status',
@@ -156,7 +176,7 @@ export default function StockoutsPage() {
         ),
       },
     ],
-    [],
+    [links],
   );
 
   return (
@@ -165,11 +185,11 @@ export default function StockoutsPage() {
         label="Filter stockouts by status"
         tabs={tabs}
         value={filter}
-        hrefFor={(value) => `${DCFP_PATHS.stockouts}?status=${value}`}
+        hrefFor={(value) => `${links.list}?status=${value}`}
       />
       <DataTable
         label="Stockout notifications"
-        preferencesKey="dcfp-stockouts"
+        preferencesKey={links.national ? 'moh-stockouts' : 'dcfp-stockouts'}
         columns={columns}
         rows={rows}
         getRowId={(report) => report.id}
@@ -189,7 +209,7 @@ export default function StockoutsPage() {
           return (
             <Button variant={manage ? 'outline' : 'ghost'} size="sm" asChild>
               <Link
-                href={DCFP_PATHS.stockout(report.id)}
+                href={links.detail(report.id)}
                 aria-label={`${manage ? 'Manage' : 'View'} ${report.hot_spot.name}`}
               >
                 {manage ? 'Manage' : 'View'}

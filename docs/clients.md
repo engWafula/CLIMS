@@ -81,7 +81,7 @@ METRO_PORT=19000
 EXPO_PUBLIC_API_URL=http://192.168.1.50:8080/api/v1
 ```
 
-Then run `make docker-up` and open `exp://192.168.1.50:19000` in Expo Go. The computer and device must be on the same network, and the firewall must allow both gateway ports. `MOBILE_HOST` controls the advertised Metro URL; `EXPO_PUBLIC_API_URL` controls the API address bundled into the app. For Android emulators, a reachable LAN address also works; alternatively use the emulator's host mapping and configure both URLs accordingly.
+Then run `make docker-up` and open `exp://192.168.1.50:19000` in Expo Go. The computer and device must be on the same network, and the firewall must allow both gateway ports. `MOBILE_HOST` controls the advertised Metro URL and is also the host the web dev server accepts besides localhost, so `http://192.168.1.50:8080` works from other machines too (Next.js otherwise refuses its hot-reload socket and the page never becomes interactive); `EXPO_PUBLIC_API_URL` controls the API address bundled into the app. For Android emulators, a reachable LAN address also works; alternatively use the emulator's host mapping and configure both URLs accordingly.
 
 When running Expo on the host, copy `mobile/.env.example` to `mobile/.env.local` and set `EXPO_PUBLIC_API_URL` to an API address reachable from the device. Public Expo variables are included in JavaScript bundles; use them for service URLs, never secrets. Restart Metro after changing environment variables. Custom gateway ports also require updating the API URL.
 

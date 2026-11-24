@@ -25,6 +25,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProducts } from '@/features/catalogue/queries';
 import { dcfpKeys } from '@/features/dcfp/queries';
+import { nationalKeys } from '@/features/moh/queries';
 import { useStores } from '@/features/geography/queries';
 import { BAND_STATUS, batchLabel } from '@/features/inventory/bands';
 import {
@@ -85,6 +86,7 @@ function useDispatchToDistrict() {
         // The stock page's ledger and the DCFP's order lists.
         queryClient.invalidateQueries({ queryKey: ['warehouse-stock'] }),
         queryClient.invalidateQueries({ queryKey: dcfpKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nationalKeys.all }),
       ]),
     // The panel shows each failure beside the field or line it is about.
     meta: { handlesOwnErrors: true },

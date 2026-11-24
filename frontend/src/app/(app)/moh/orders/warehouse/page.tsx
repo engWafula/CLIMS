@@ -1,8 +1,8 @@
-import MohRequestsPage from '@/features/moh/MohRequestsPage';
+import WarehouseOrdersPage from '@/features/dcfp/WarehouseOrdersPage';
 import { pageMetadata } from '@/navigation/pageMetadata';
 
 export const metadata = pageMetadata('/moh/orders/warehouse');
 
 export default function Page() {
-  return <MohRequestsPage />;
+  return <WarehouseOrdersPage scope="national" />;
 }

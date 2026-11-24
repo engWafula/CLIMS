@@ -48,6 +48,34 @@ describe('createHttpClient', () => {
     expect(requests[0]?.authorization).toBeNull();
   });
 
+  it.each([200, 401])('ignores a %s response from a previous session', async (status) => {
+    const { adapter } = createFakeAdapter({ status, body: { message: 'old session' } });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let generation = 1;
+    const onUnauthorized = vi.fn();
+    const refresh = vi.fn().mockResolvedValue(true);
+    const http = createHttpClient({
+      baseUrl: '/api',
+      getToken: () => 'token',
+      getSessionGeneration: () => generation,
+      onUnauthorized,
+      refresh,
+      adapter: async (config) => {
+        await gate;
+        return adapter(config);
+      },
+    });
+    const request = http.get('/users');
+    generation = 2;
+    release();
+    expect((await captureError(request)).kind).toBe('cancelled');
+    expect(refresh).not.toHaveBeenCalled();
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it('reads the token on every request, not once at creation', async () => {
     const { adapter, requests } = createFakeAdapter({ status: 200, body: [] });
     let token: string | null = 'first';

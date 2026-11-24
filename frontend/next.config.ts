@@ -27,6 +27,13 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   // Do not advertise the framework in a response header.
   poweredByHeader: false,
+  // `next dev` refuses its hot-reload socket to pages opened on any host but localhost, and such a
+  // page never hydrates. ALLOWED_DEV_ORIGINS (comma-separated hosts, e.g. the LAN IP in
+  // docs/clients.md) lets those hosts in. A production build ignores it.
+  allowedDevOrigins: (process.env.ALLOWED_DEV_ORIGINS ?? '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean),
   turbopack: {
     root: __dirname,
   },

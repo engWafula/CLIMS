@@ -3,7 +3,11 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 
-import { ActivityTimeline, type ActivityEntry } from '@/components/ActivityTimeline';
+import {
+  ActivityTimeline,
+  ActivityTimelineSkeleton,
+  type ActivityEntry,
+} from '@/components/ActivityTimeline';
 import { DataTable } from '@/components/data-table/DataTable';
 import { DetailHeader } from '@/components/DetailHeader';
 import { DetailList } from '@/components/DetailList';
@@ -25,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { packLabel, type Product } from '@/features/catalogue/api';
 import type { StockBatch } from '@/features/inventory/api';
 import { BAND_STATUS, batchLabel, shelfLifeLeft } from '@/features/inventory/bands';
+import { useCan } from '@/features/auth/queries';
 import type { Order } from '@/features/orders/api';
 import { useFocusWhenLost } from '@/hooks/useFocusWhenLost';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -64,7 +69,7 @@ export default function DistrictRequestPage() {
   const bannerRef = useRef<HTMLDivElement>(null);
   useFocusWhenLost(bannerRef, order.data?.order_status);
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <StoreSwitch store={code} hrefFor={(other) => withStore(WAREHOUSE_PATHS.requests, other)} />
       <RecordView
         query={order}
@@ -97,6 +102,8 @@ function OrderDetail({
   const names = useRequestNames();
   const events = useStoreOrderEvents(order.id);
   const readOnly = useReadOnly();
+  // Every step on this page is an order step; the API refuses them without orders:process.
+  const canProcess = useCan()('orders:process');
   const district = names.store(order.ordered_for_store_id);
   const product = names.product(order.condom_id, order.condom_category);
   const quantity = (value: number | null) => names.quantity(value, order.unit_of_measure_id);
@@ -127,7 +134,7 @@ function OrderDetail({
             <AlertTitle>{banner.title}</AlertTitle>
             <AlertDescription className="break-words">{banner.body}</AlertDescription>
           </Alert>
-          {readOnly ? null : state === 'queued' ? (
+          {readOnly || !canProcess ? null : state === 'queued' ? (
             <DecisionCard {...props} />
           ) : state === 'reviewed' || state === 'on_hold' ? (
             <StockCheckCard {...props} />
@@ -174,7 +181,7 @@ function OrderDetail({
             </CardHeader>
             <CardContent>
               {events.isPending ? (
-                <p className="text-muted-foreground text-sm">Loading…</p>
+                <ActivityTimelineSkeleton />
               ) : events.isError ? (
                 <ErrorState
                   title="Could not load the history"

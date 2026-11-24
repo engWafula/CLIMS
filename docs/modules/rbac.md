@@ -17,6 +17,8 @@ Source: `backend/internal/features/rbac/`.
 
 The role catalog includes `admin`, `moh`, `nms`, `jms`, `dfcp`, `store incharge`, `hotspot manager`, `delivery agent`, `other supplier`, `healthy facility`, and `vht`. The API returns UUIDs for these roles. It supports permission updates for existing roles.
 
+`moh` is the national overseer: it reads everything and changes nothing. Migration 39 grants it every read permission with `orders:all_stores` and `hotspots:all_districts` (which widen what it reads to every store and district, and add no action), and removes `catalogue:manage`. The web app opens every workspace read-only for it. These are default grants an administrator can change on Roles & permissions.
+
 ## Permission policy
 
 | Permission          | Capability                                           |

@@ -4,7 +4,7 @@ import type { TaskItem } from '@/components/TaskList';
 import { formatDate, formatNumber } from '@/lib/format';
 
 import { WAREHOUSE_PATHS } from './paths';
-import { formatAmounts, formatMonths, stockCover, type UnitAmount } from './summary';
+import { formatMonths, formatStock, isPieces, stockCover, type UnitAmount } from './summary';
 
 /*
  * A store's stock against its expiry dates, worked out from its batches. However many products and
@@ -106,7 +106,7 @@ export function stockAttention(
       id: 'expired',
       status: { label: BAND_STATUS.expired.label, tone: 'negative' },
       title: `Write off ${batchCount(expired.length)}`,
-      detail: `${formatAmounts(bandAcrossUnits(units, 'expired').amounts)} past expiry can't be dispatched. Dispose of it, then write it off.`,
+      detail: `${formatStock(bandAcrossUnits(units, 'expired').amounts)} past expiry can't be dispatched. Dispose of it, then write it off.`,
       action: 'See expired batches',
       href: href(`${stockPath}?view=batches&band=expired`),
     });
@@ -135,7 +135,7 @@ export function stockAttention(
       id: 'unknown',
       status: { label: 'No expiry date', tone: 'neutral' },
       title: `Record expiry dates for ${batchCount(undated.length)}`,
-      detail: `${formatAmounts(bandAcrossUnits(units, 'unknown').amounts)} has no expiry date, so it can't be dispatched first-expiry-first-out. Count it and record its batches.`,
+      detail: `${formatStock(bandAcrossUnits(units, 'unknown').amounts)} has no expiry date, so it can't be dispatched first-expiry-first-out. Count it and record its batches.`,
       action: 'See undated batches',
       href: href(`${stockPath}?view=batches&band=unknown`),
     });
@@ -156,9 +156,9 @@ export function stockAttention(
       title: `${formatNumber(running.length)} ${
         running.length === 1 ? 'product has' : 'products have'
       } under a month of stock`,
-      detail: `Lowest: ${lowest.product.product} (${lowest.product.unit}), ${formatMonths(
-        lowest.months,
-      ).toLowerCase()} at the last 90 days' rate of dispatch.`,
+      detail: `Lowest: ${lowest.product.product}${
+        isPieces(lowest.product.unit) ? '' : ` (${lowest.product.unit})`
+      }, ${formatMonths(lowest.months).toLowerCase()} at the last 90 days' rate of dispatch.`,
       action: 'See products',
       href: href(stockPath),
     });

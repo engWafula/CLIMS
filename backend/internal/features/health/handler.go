@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"clims-backend/internal/pkg/response"
@@ -40,7 +41,9 @@ func (h *Handler) Readiness(c fiber.Ctx) error {
 	defer cancel()
 
 	if err := h.DB.Ping(ctx); err != nil {
-		return response.Error(c, fiber.StatusServiceUnavailable, "database is unreachable", err.Error())
+		// The probe is public; the error names the database host, user and name, so it stays in the log.
+		slog.Error("readiness: database ping failed", "error", err)
+		return response.Error(c, fiber.StatusServiceUnavailable, "database is unreachable", nil)
 	}
 
 	return response.Success(c, fiber.StatusOK, "service and database are ready", fiber.Map{

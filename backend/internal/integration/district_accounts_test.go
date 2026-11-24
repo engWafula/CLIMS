@@ -39,7 +39,7 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, name string, roles ...string)
 }
 
 // testDistrictAccounts checks that a district focal person creates VHT, hotspot manager and
-// delivery agent accounts in their own district only (migration 39, POST /users/district).
+// delivery agent accounts in their own district only (migration 40, POST /users/district).
 func testDistrictAccounts(t *testing.T, pool *pgxpool.Pool,
 	request func(string, string, any, string, int) map[string]any,
 	login func(string, string, int) string,
@@ -66,7 +66,7 @@ func testDistrictAccounts(t *testing.T, pool *pgxpool.Pool,
 		}
 	}
 
-	// The district focal person role holds both permissions from migration 39; general user
+	// The district focal person role holds both permissions from migration 40; general user
 	// management stays with administrators.
 	var granted int
 	scalar(&granted, `SELECT count(*) FROM role_permission rp JOIN roles r ON r.id = rp.role_id

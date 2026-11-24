@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { PageSkeleton } from './PageSkeleton';
 
 describe('PageSkeleton', () => {
-  it.each(['table', 'dashboard', 'detail', 'form'] as const)(
+  it.each(['table', 'dashboard', 'detail', 'form', 'stockout'] as const)(
     'announces the %s layout once and hides its shapes',
     (layout) => {
       const { container } = render(<PageSkeleton layout={layout} />);
@@ -19,7 +19,7 @@ describe('PageSkeleton', () => {
   );
 
   it('draws a different shape for each layout', () => {
-    const shapes = (['table', 'dashboard', 'detail', 'form'] as const).map((layout) => {
+    const shapes = (['table', 'dashboard', 'detail', 'form', 'stockout'] as const).map((layout) => {
       const { container, unmount } = render(<PageSkeleton layout={layout} />);
       const count = container.querySelectorAll('[data-slot="skeleton"]').length;
       unmount();

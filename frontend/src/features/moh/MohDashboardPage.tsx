@@ -1,396 +1,194 @@
 'use client';
 
-import { CircleAlert, Clock, Inbox, List, Package } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
+import { useRef } from 'react';
 
-import { ActivityTimeline } from '@/components/ActivityTimeline';
-import { ShareList } from '@/components/charts/ShareList';
-import { TrendChart } from '@/components/charts/TrendChart';
-import { DataTable, type DataTableColumn } from '@/components/data-table/DataTable';
-import { RowActions } from '@/components/data-table/RowActions';
-import { DetailHeader } from '@/components/DetailHeader';
-import { SampleDataNotice } from '@/components/SampleData';
-import { StatCard, StatCardGrid } from '@/components/StatCard';
-import { EmptyState } from '@/components/states/EmptyState';
-import { ErrorState } from '@/components/states/ErrorState';
-import { StatusBadge } from '@/components/StatusBadge';
-import { StepTracker } from '@/components/StepTracker';
+import { PageActions } from '@/components/PageActions';
+import { PdfButton } from '@/components/reports/PdfButton';
+import { TaskList, type TaskItem } from '@/components/TaskList';
+import { hoursLabel } from '@/components/charts/format';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { timelineEntries } from '@/features/fulfilment/activity';
-import { formatQuantities } from '@/features/fulfilment/products';
-import { orderSteps } from '@/features/fulfilment/progress';
-import { ORDER_STATUS } from '@/features/fulfilment/status';
-import { EMPTY_VALUE, formatDuration, formatNumber } from '@/lib/format';
-
-import type { DistrictStoreSummary } from './api';
-import { latestOpenOrder } from './audit';
-import { useDistrictContext } from '@/features/district/DistrictContext';
-import { DistrictFilter } from './DistrictFilter';
-import { listHref, MOH_PATHS } from './filters';
-import { districtStockStatus, openOrders, ordersByStage, warehouseTotals } from './national';
+import { FilterBar } from '@/features/analytics/FilterBar';
+import { apiParams, filterQuery, type FilterField } from '@/features/analytics/filters';
 import {
-  useDistrictStores,
-  useNationalActivity,
-  useNationalOrders,
-  useNationalSummary,
-} from './queries';
-import {
-  SAMPLE_NATIONAL_ORDERS,
-  SAMPLE_STOCKOUTS_BY_DISTRICT,
-  SAMPLE_WAREHOUSE_STOCK,
-} from './sampleCharts';
+  useBatchReport,
+  useNotificationReport,
+  useStockReport,
+  useSupplyReport,
+} from '@/features/analytics/queries';
+import { useReportFilters, type ReportFilters } from '@/features/analytics/useReportFilters';
+import { OverviewView } from '@/features/analytics/views/OverviewView';
+import { MIN_MONTHS } from '@/features/analytics/views/shared';
+import { formatNumber } from '@/lib/format';
 
-const RECENT_EVENTS = 8;
+const FIELDS: readonly FilterField[] = ['period', 'interval', 'region', 'district', 'category'];
+const REPORTS = '/moh/programme-reports';
 
-/** National view of condom stock, hotspot orders and deliveries. */
+/**
+ * The national view for the Ministry of Health, which oversees the whole
+ * programme and changes nothing: what needs watching, then the programme at a
+ * glance (requests, warehouse orders, stock, expiry and hotspots) for the period
+ * and place chosen, with a PDF of it all.
+ */
 export default function MohDashboardPage() {
-  const params = useSearchParams();
-  const context = useDistrictContext();
-  const district = context ? context.district : params.get('district') || null;
-  const summary = useNationalSummary(district);
+  const filters = useReportFilters();
+  const queryClient = useQueryClient();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const fetching = queryClient.isFetching({ queryKey: ['analytics'] }) > 0;
 
   return (
     <div className="gap-section flex flex-col">
-      <SampleDataNotice subject="Stock, orders and deliveries" />
-      {!context && (
-        <DistrictFilter
-          value={district}
-          hrefFor={(next) => listHref(MOH_PATHS.dashboard, { district: next })}
-        />
-      )}
-
-      {summary.isError ? (
-        <div className="bg-card rounded-card border">
-          <ErrorState
-            title={
-              district
-                ? 'Could not load the district figures'
-                : 'Could not load the national figures'
-            }
-            error={summary.error}
-            onRetry={() => void summary.refetch()}
-            isRetrying={summary.isRefetching}
-          />
-        </div>
-      ) : (
-        <Headlines summary={summary} district={district} />
-      )}
-
-      <LatestOrder district={district} />
-
-      {!district && (
-        <div className="gap-section grid lg:grid-cols-3">
-          <TrendChart
-            title="National warehouse stock"
-            description="Male condoms at NMS and JMS, last 12 weeks"
-            categoryLabel="Week"
-            series={[
-              { key: 'nms', label: 'NMS', color: 'var(--chart-2)' },
-              { key: 'jms', label: 'JMS', color: 'var(--chart-1)' },
-            ]}
-            rows={SAMPLE_WAREHOUSE_STOCK}
-            isSample
-          />
-          <TrendChart
-            title="Hotspot orders, national"
-            description="Received vs fulfilled per week, last 8 weeks"
-            categoryLabel="Week"
-            series={[
-              { key: 'received', label: 'Received', color: 'var(--chart-1)' },
-              { key: 'fulfilled', label: 'Fulfilled', color: 'var(--chart-2)' },
-            ]}
-            rows={SAMPLE_NATIONAL_ORDERS}
-            isSample
-          />
-          <ShareList
-            title="Stockouts by district"
-            description="Reported in the last 30 days"
-            totalLabel="Stockouts"
-            shares={SAMPLE_STOCKOUTS_BY_DISTRICT.map((share) => ({
-              ...share,
-              color: 'var(--chart-4)',
-            }))}
-            isSample
-          />
-        </div>
-      )}
-
-      <div className="gap-section grid lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <Pipeline summary={summary} district={district} />
-        <DistrictStores district={district} />
-      </div>
-
-      <RecentActivity district={district} />
-    </div>
-  );
-}
-
-type SummaryQuery = ReturnType<typeof useNationalSummary>;
-
-function Headlines({ summary, district }: { summary: SummaryQuery; district: string | null }) {
-  const data = summary.data;
-  const stock = data ? warehouseTotals(data.warehouse_stock) : null;
-  const orders = data ? openOrders(data.orders_by_status) : null;
-  const lead = data?.average_lead_minutes ?? null;
-  const isLoading = summary.isPending;
-  return (
-    <div className="flex flex-col gap-2">
-      <StatCardGrid>
-        <StatCard
-          label="National warehouse stock"
-          value={formatNumber(stock?.total)}
-          icon={Package}
-          accent="positive"
-          href={listHref(MOH_PATHS.requests, { district })}
-          isLoading={isLoading}
-        />
-        <StatCard
-          label="Open hotspot orders"
-          value={formatNumber(orders?.open)}
-          icon={Inbox}
-          accent="info"
-          href={listHref(MOH_PATHS.orders, { district })}
-          isLoading={isLoading}
-        />
-        <StatCard
-          label="Stockouts in the last 7 days"
-          value={formatNumber(data?.stockouts_last_7_days)}
-          icon={CircleAlert}
-          accent="caution"
-          href={listHref(MOH_PATHS.orders, { district })}
-          isLoading={isLoading}
-        />
-        <StatCard
-          label="Average lead time"
-          value={lead === null ? EMPTY_VALUE : formatDuration(lead * 60_000)}
-          icon={Clock}
-          accent="violet"
-          href={listHref(MOH_PATHS.orders, { status: 'closed', district })}
-          isLoading={isLoading}
-        />
-      </StatCardGrid>
-      {stock && orders ? (
-        <p className="text-muted-foreground text-xs">
-          {stock.byWarehouse
-            .map((entry) => `${entry.warehouse} ${formatNumber(entry.pieces)}`)
-            .join(' · ')}{' '}
-          pieces. {formatNumber(orders.onHold)}{' '}
-          {orders.onHold === 1 ? 'open order is' : 'open orders are'} on hold for stock. Lead time
-          runs from the stockout notification to confirmed receipt.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-/** The newest open order, traced step by step, as the prototype's "Tracing" card. */
-function LatestOrder({ district }: { district: string | null }) {
-  const orders = useNationalOrders(district);
-  if (orders.isPending) {
-    return (
-      <div role="status">
-        <Skeleton className="h-32 w-full" />
-        <span className="sr-only">Loading the latest order…</span>
-      </div>
-    );
-  }
-  if (orders.isError) {
-    return (
-      <div className="bg-card rounded-card border">
-        <ErrorState
-          title="Could not load the latest order"
-          error={orders.error}
-          onRetry={() => void orders.refetch()}
-          isRetrying={orders.isRefetching}
-        />
-      </div>
-    );
-  }
-  const order = latestOpenOrder(orders.data);
-  if (!order) {
-    return (
-      <div className="bg-card rounded-card border">
-        <EmptyState
-          icon={Inbox}
-          title="No open hotspot orders"
-          description={
-            district
-              ? `New stockout notifications from ${district} will be traced here.`
-              : 'New stockout notifications from any district will be traced here.'
-          }
-        />
-      </div>
-    );
-  }
-  const status = ORDER_STATUS[order.status];
-  return (
-    <DetailHeader
-      title={`Latest order ${order.id}`}
-      status={<StatusBadge status={status.label} tone={status.tone} />}
-      description={`${order.hotspot.name}${order.hotspot.district ? `, ${order.hotspot.district}` : ''} · ${formatQuantities(order.requested)} · raised by ${order.requested_by.name} (${order.requested_by.role})`}
-      actions={
-        <Button asChild variant="outline" size="sm">
-          <Link href={MOH_PATHS.order(order.id)}>Audit trail</Link>
+      <PageActions>
+        <Button
+          variant="ghost"
+          onClick={() => void queryClient.invalidateQueries({ queryKey: ['analytics'] })}
+          disabled={fetching}
+        >
+          <RefreshCw data-icon="inline-start" className={fetching ? 'animate-spin' : undefined} />
+          Refresh
         </Button>
-      }
-    >
-      <StepTracker aria-label={`Progress of ${order.id}`} steps={orderSteps(order, null)} />
-    </DetailHeader>
-  );
-}
-
-function Pipeline({ summary, district }: { summary: SummaryQuery; district: string | null }) {
-  if (summary.isPending) {
-    return (
-      <div role="status" className="bg-card rounded-card border p-4">
-        <Skeleton className="h-64 w-full" />
-        <span className="sr-only">Loading orders by stage…</span>
-      </div>
-    );
-  }
-  // The headline figures above already report the failure and offer a retry.
-  if (summary.isError) return null;
-  return (
-    <ShareList
-      title="Hotspot orders by stage"
-      description={`${district ?? 'All districts'}, open and closed this month`}
-      totalLabel="Orders"
-      shares={ordersByStage(summary.data.orders_by_status)}
-    />
-  );
-}
-
-function DistrictStores({ district }: { district: string | null }) {
-  const router = useRouter();
-  const stores = useDistrictStores();
-  const columns = useMemo<DataTableColumn<DistrictStoreSummary>[]>(
-    () => [
-      { id: 'district', filter: 'select', header: 'District', value: (store) => store.district },
-      {
-        id: 'male',
-        header: 'Male',
-        numeric: true,
-        value: (store) => store.stock.male,
-        cell: (store) => formatNumber(store.stock.male),
-      },
-      {
-        id: 'female',
-        header: 'Female',
-        numeric: true,
-        value: (store) => store.stock.female,
-        cell: (store) => formatNumber(store.stock.female),
-      },
-      {
-        id: 'open',
-        header: 'Open orders',
-        numeric: true,
-        value: (store) => store.open_orders,
-        cell: (store) => formatNumber(store.open_orders),
-      },
-      {
-        id: 'status',
-        filter: 'select',
-        header: 'Stock status',
-        value: (store) => districtStockStatus(store).label,
-        cell: (store) => {
-          const status = districtStockStatus(store);
-          return <StatusBadge status={status.label} tone={status.tone} />;
-        },
-      },
-    ],
-    [],
-  );
-
-  return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>District stores</CardTitle>
-        <CardDescription>Condoms in each district store against its minimum level</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <DataTable
-          label="District stores"
-          preferencesKey="moh-district-stores"
-          columns={columns}
-          rows={
-            district
-              ? stores.data?.filter(
-                  (store) => store.district.toLowerCase() === district.toLowerCase(),
-                )
-              : stores.data
-          }
-          getRowId={(store) => store.district}
-          isLoading={stores.isPending}
-          error={stores.error}
-          onRetry={() => void stores.refetch()}
-          isRetrying={stores.isRefetching}
-          searchPlaceholder="Search districts…"
-          emptyTitle="No district stores yet"
-          emptyDescription="District stores appear here once they are set up."
-          rowActions={(store) => (
-            <RowActions
-              label={`Actions for ${store.district}`}
-              actions={[
-                {
-                  label: 'View hotspot orders',
-                  icon: List,
-                  onSelect: () => {
-                    router.push(listHref(MOH_PATHS.orders, { district: store.district }));
-                  },
-                },
-                {
-                  label: 'View warehouse requests',
-                  icon: Package,
-                  onSelect: () => {
-                    router.push(listHref(MOH_PATHS.requests, { district: store.district }));
-                  },
-                },
-              ]}
-            />
-          )}
+        <PdfButton
+          title="MOH dashboard"
+          subtitle="National view of condom stock, hotspot stockout requests, warehouse orders and deliveries."
+          targetRef={contentRef}
         />
-      </CardContent>
-    </Card>
+      </PageActions>
+      <FilterBar filters={filters} fields={FIELDS} />
+      <div ref={contentRef} className="gap-section flex flex-col">
+        <WatchList filters={filters} />
+        <OverviewView filters={filters} workspace="moh" />
+      </div>
+    </div>
   );
 }
 
-function RecentActivity({ district }: { district: string | null }) {
-  const activity = useNationalActivity(district);
+/**
+ * What MOH should look into, from the same reports: requests past their
+ * deadline, deliveries nobody acknowledged, stock that is expiring or short,
+ * and ledgers that do not add up. Each opens the report behind it.
+ */
+function WatchList({ filters }: { filters: ReportFilters }) {
+  const { state } = filters;
+  const notifications = useNotificationReport(
+    apiParams(state, ['from', 'to', 'district_id', 'category']),
+  );
+  const supply = useSupplyReport(apiParams(state, ['from', 'to', 'district_id', 'category']));
+  const stockParams = apiParams(state, ['district_id', 'category']);
+  const stock = useStockReport(stockParams);
+  const batches = useBatchReport(stockParams);
+  const queries = [notifications, supply, stock, batches];
+  const failed = queries.find((query) => query.isError);
+  const loading = queries.some((query) => query.isPending);
+  const link = (view: string, extra: Record<string, string> = {}) =>
+    `${REPORTS}${filterQuery(state, { view, ...extra })}`;
+
+  let tasks: TaskItem[] | undefined;
+  if (notifications.data && supply.data && stock.data && batches.data) {
+    tasks = [];
+    const n = notifications.data;
+    if (n.deadline.late_pending > 0)
+      tasks.push({
+        id: 'late',
+        status: { label: 'Overdue', tone: 'negative' },
+        title: `${formatNumber(n.deadline.late_pending)} stockout request${n.deadline.late_pending === 1 ? '' : 's'} past the ${n.deadline.days}-day deadline`,
+        detail: 'Raised in the period and still waiting for the district to supply them.',
+        action: 'See requests',
+        href: link('notifications', { status: 'awaiting_supply' }),
+      });
+    if (n.acknowledgement_overdue > 0)
+      tasks.push({
+        id: 'ack',
+        status: { label: 'Quality issue', tone: 'caution' },
+        title: `${formatNumber(n.acknowledgement_overdue)} deliver${n.acknowledgement_overdue === 1 ? 'y' : 'ies'} not acknowledged in time`,
+        detail:
+          'The hotspot manager has not confirmed what arrived; they do not count as fulfilled.',
+        action: 'See requests',
+        href: link('notifications', { status: 'awaiting_acknowledgement' }),
+      });
+    if (n.backlog.open > 0)
+      tasks.push({
+        id: 'backlog',
+        status: { label: 'Backlog', tone: 'caution' },
+        title: `${formatNumber(n.backlog.open)} request${n.backlog.open === 1 ? '' : 's'} open from before the period`,
+        detail: 'Kept apart from the period figures; they are still waiting.',
+        action: 'See requests',
+        href: link('notifications'),
+      });
+    const pending = supply.data.total.pending;
+    if (pending > 0)
+      tasks.push({
+        id: 'orders',
+        status: { label: 'Open', tone: 'info' },
+        title: `${formatNumber(pending)} district order${pending === 1 ? '' : 's'} to the warehouses not received yet`,
+        detail: supply.data.response.oldest_pending_hours
+          ? `The oldest has waited ${hoursLabel(supply.data.response.oldest_pending_hours)}.`
+          : 'Raised in the period and not yet counted in by the district.',
+        action: 'See orders',
+        href: link('warehouse-requests'),
+      });
+    const expired = batches.data.lines.filter((line) => line.band === 'expired');
+    const expiring = batches.data.lines.filter((line) => line.band === 'under_1_month');
+    if (expired.length > 0)
+      tasks.push({
+        id: 'expired',
+        status: { label: 'Expired', tone: 'negative' },
+        title: `${formatNumber(expired.reduce((sum, line) => sum + (line.pieces ?? 0), 0))} expired pieces still on hand`,
+        detail: `${formatNumber(expired.length)} batch${expired.length === 1 ? '' : 'es'} to separate and dispose of.`,
+        action: 'See batches',
+        href: link('batches', { band: 'expired' }),
+      });
+    if (expiring.length > 0)
+      tasks.push({
+        id: 'expiring',
+        status: { label: 'Expiring', tone: 'caution' },
+        title: `${formatNumber(expiring.reduce((sum, line) => sum + (line.pieces ?? 0), 0))} pieces expire within a month`,
+        detail: `${[...new Set(expiring.map((line) => line.store))].join(', ')}: issue them first or plan redistribution.`,
+        action: 'See batches',
+        href: link('batches', { band: 'under_1_month' }),
+      });
+    const low = stock.data.lines.filter(
+      (line) => line.months_of_stock !== null && line.months_of_stock < MIN_MONTHS,
+    );
+    if (low.length > 0)
+      tasks.push({
+        id: 'low',
+        status: { label: 'Low stock', tone: 'caution' },
+        title: `${formatNumber(low.length)} stock line${low.length === 1 ? '' : 's'} below ${MIN_MONTHS} months of stock`,
+        detail: `${[...new Set(low.map((line) => line.store))].slice(0, 4).join(', ')}${low.length > 4 ? ' and others' : ''}.`,
+        action: 'See stock',
+        href: link('stock'),
+      });
+    const unreconciled = stock.data.lines.filter(
+      (line) => !line.reconciled || !line.batches_reconciled,
+    );
+    if (unreconciled.length > 0)
+      tasks.push({
+        id: 'reconcile',
+        status: { label: 'Check ledger', tone: 'caution' },
+        title: `${formatNumber(unreconciled.length)} stock line${unreconciled.length === 1 ? '' : 's'} do not reconcile`,
+        detail: 'The ledger or batches do not add up to the physical balance.',
+        action: 'See stock',
+        href: link('stock'),
+      });
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {district ? `Activity in ${district}` : 'Activity across the supply chain'}
-        </CardTitle>
-        <CardDescription>Latest actions by every role</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {activity.isPending ? (
-          <div role="status">
-            <Skeleton className="h-32 w-full" />
-            <span className="sr-only">Loading recent activity…</span>
-          </div>
-        ) : activity.isError ? (
-          <ErrorState
-            title="Could not load recent activity"
-            error={activity.error}
-            onRetry={() => void activity.refetch()}
-            isRetrying={activity.isRefetching}
-          />
-        ) : activity.data.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nothing has happened yet.</p>
-        ) : (
-          <ActivityTimeline
-            variant="compact"
-            aria-label="Recent activity"
-            entries={timelineEntries(activity.data.slice(0, RECENT_EVENTS), { feed: true })}
-          />
-        )}
-      </CardContent>
-    </Card>
+    <TaskList
+      title="Needs watching"
+      tasks={tasks}
+      isLoading={loading && !failed}
+      error={failed?.error}
+      errorTitle="Could not check the programme's figures"
+      onRetry={() => {
+        for (const query of queries) void query.refetch();
+      }}
+      loadingLabel="Checking the programme's figures…"
+      empty={{
+        title: 'Nothing needs watching',
+        description:
+          'No overdue requests, expiring or short stock, or ledgers out of balance for these filters.',
+      }}
+    />
   );
 }

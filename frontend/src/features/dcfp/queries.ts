@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 
 import { useApiQuery, useHttp } from '@/lib/api';
 import { warehouseOrderKeys, warehouseStockKeys } from '@/features/warehouse/queryKeys';
+import { nationalKeys } from '@/features/moh/queries';
 
 import {
   createWarehouseOrder,
@@ -98,6 +99,7 @@ export function useDeliverStock() {
         queryClient.invalidateQueries({ queryKey: dcfpKeys.all }),
         queryClient.invalidateQueries({ queryKey: warehouseOrderKeys.all }),
         queryClient.invalidateQueries({ queryKey: warehouseStockKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nationalKeys.all }),
       ]);
     },
     meta: { handlesOwnErrors: true },
@@ -112,7 +114,10 @@ export function useRejectStockout(reportId: string) {
     mutationFn: (reason: string) => rejectStockout(http, reportId, reason),
     onSuccess: async () => {
       toast.success('Request rejected. The hotspot is told why.');
-      await queryClient.invalidateQueries({ queryKey: dcfpKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: dcfpKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nationalKeys.all }),
+      ]);
     },
     meta: { handlesOwnErrors: true },
   });
@@ -121,11 +126,16 @@ export function useRejectStockout(reportId: string) {
 export function usePlaceOrder() {
   const http = useHttp();
   const invalidate = useInvalidateDcfp();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: WarehouseOrderInput) => createWarehouseOrder(http, input),
     onSuccess: async () => {
       toast.success('Order sent to the warehouse');
-      await invalidate();
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: warehouseOrderKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nationalKeys.all }),
+      ]);
     },
     // The order form shows the failure beside its fields.
     meta: { handlesOwnErrors: true },
@@ -144,6 +154,7 @@ export function useReceiveOrder(id: string) {
         invalidate(),
         queryClient.invalidateQueries({ queryKey: warehouseOrderKeys.all }),
         queryClient.invalidateQueries({ queryKey: warehouseStockKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nationalKeys.all }),
       ]);
     },
     // The receipt form shows the failure in place.

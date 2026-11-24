@@ -4,8 +4,9 @@ import { formatNumber } from '@/lib/format';
 /*
  * The warehouse stock page's figures, from GET /inventory/store-summary. Stock levels are as of
  * now; what was received and dispatched, and how district orders went, cover a period chosen on
- * the page. Units differ in size (a carton holds many boxes), so amounts in different units are
- * listed side by side and never added together.
+ * the page. Stock is handled in pieces, which the figures leave unnamed. Units differ in size (a
+ * carton holds many boxes), so an old record in another unit is listed beside the pieces, named,
+ * and never added to them.
  */
 
 export const PERIODS = [
@@ -56,6 +57,29 @@ export function totalsByUnit(
 export function formatAmounts(amounts: readonly UnitAmount[], none = '0'): string {
   if (amounts.length === 0) return none;
   return amounts.map((amount) => `${formatNumber(amount.quantity)} ${amount.unit}`).join(' · ');
+}
+
+/** Stock is handled in pieces, so a figure in pieces needs no unit after it. */
+export function isPieces(unit: string): boolean {
+  return /^pieces?$/i.test(unit.trim());
+}
+
+/** What follows a figure: nothing for pieces, " Carton" for any other unit an old record holds. */
+export function unitSuffix(unit: string): string {
+  return isPieces(unit) ? '' : ` ${unit}`;
+}
+
+/** A product's name, with its unit only when that is not pieces: "Male condoms, Carton". */
+export function productName(product: string, unit: string): string {
+  return isPieces(unit) ? product : `${product}, ${unit}`;
+}
+
+/** Figures for the stock screens: "3,770", "3,770 · 400 Carton", or `none` when there is nothing. */
+export function formatStock(amounts: readonly UnitAmount[], none = '0'): string {
+  if (amounts.length === 0) return none;
+  return amounts
+    .map((amount) => `${formatNumber(amount.quantity)}${unitSuffix(amount.unit)}`)
+    .join(' · ');
 }
 
 type Orders = StoreSummary['orders'];

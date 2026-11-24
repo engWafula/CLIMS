@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CircleAlert, CircleCheck, Eye, EyeOff } from 'lucide-react';
+import { CircleAlert, CircleCheck, Eye, EyeOff, Smartphone } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -16,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { getErrorMessage } from '@/lib/api';
 import { ACTIVATED_PARAM, SSO_ERROR_PARAM } from '@/navigation/paths';
 
-import { useSignIn } from './hooks';
+import { FieldAppOnlyError, useSignIn } from './hooks';
 
 const credentialsSchema = z.object({
   // An email address, username or phone number; the API works out which.
@@ -43,12 +43,33 @@ const PORTAL_ERRORS = new Map(
   }),
 );
 
+/** `?sso_error=mobile`: portal sign-in reached a field account, which has no web access. */
+const PORTAL_FIELD_ACCOUNT = 'mobile';
+
+/** Shown in place of the failure alert to a VHT, hotspot manager or delivery agent. */
+function FieldAppOnlyAlert() {
+  return (
+    <Alert variant="info">
+      <Smartphone aria-hidden="true" />
+      <AlertTitle>Use the CLIMS mobile app</AlertTitle>
+      <AlertDescription>
+        VHTs, hotspot managers and delivery agents work in the mobile app, not on the web. Sign in
+        on your phone with this same account.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 /** The sign-in screen. On success the guard around it moves the user on. */
 export default function SignInPage() {
   const signIn = useSignIn();
   const searchParams = useSearchParams();
   const isJustActivated = activatedParamSchema.safeParse(searchParams.get(ACTIVATED_PARAM)).success;
-  const portalError = PORTAL_ERRORS.get(searchParams.get(SSO_ERROR_PARAM) ?? '') ?? null;
+  const portalErrorCode = searchParams.get(SSO_ERROR_PARAM) ?? '';
+  const portalError = PORTAL_ERRORS.get(portalErrorCode) ?? null;
+  const fieldAccount =
+    signIn.error instanceof FieldAppOnlyError ||
+    (!signIn.isError && portalErrorCode === PORTAL_FIELD_ACCOUNT);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const {
     register,
@@ -94,7 +115,9 @@ export default function SignInPage() {
                   <AlertDescription>{portalError}</AlertDescription>
                 </Alert>
               ) : null}
-              {signIn.isError ? (
+              {fieldAccount ? (
+                <FieldAppOnlyAlert />
+              ) : signIn.isError ? (
                 <Alert variant="destructive">
                   <CircleAlert aria-hidden="true" />
                   <AlertTitle>Could not sign in</AlertTitle>

@@ -273,10 +273,42 @@ type queuedPush struct {
 }
 
 // SendDue claims up to one batch of due pushes and sends them. It reports how many it claimed.
+//
+// Claiming is one short transaction that leases the pushes (their next attempt moves past the time
+// sending the whole batch can take), so no other worker sends them meanwhile. Sending happens outside
+// any transaction, and each outcome is saved on its own: a slow FCM holds no locks, and a failure
+// part-way through never sends the pushes that already went a second time.
 func (w *PushWorker) SendDue(ctx context.Context) (int, error) {
-	tx, err := w.db.Begin(ctx)
+	batch, claimed, err := w.claim(ctx)
 	if err != nil {
 		return 0, err
+	}
+	var first error
+	for _, p := range batch {
+		if err := w.send(ctx, p); err != nil {
+			// The push stays leased and is tried again once the lease runs out.
+			slog.Error("push outcome not saved", "notification", p.notificationID, "error", err)
+			if first == nil {
+				first = err
+			}
+		}
+	}
+	return claimed, first
+}
+
+// pushSendTimeout bounds one push; pushLease covers sending a whole batch of them.
+const (
+	pushSendTimeout = 20 * time.Second
+	pushLease       = pushBatch*pushSendTimeout + time.Minute
+)
+
+// claim takes up to one batch of due pushes. Those that can no longer go (signed out, moved to another
+// account, or stale; the inbox still has them) are deleted; the rest are leased and returned. claimed
+// counts both.
+func (w *PushWorker) claim(ctx context.Context) ([]queuedPush, int, error) {
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, 0, err
 	}
 	defer tx.Rollback(ctx)
 	rows, err := tx.Query(ctx, `SELECT o.id::text, o.notification_id, o.user_id, o.token, o.title, o.body, o.attempts,
@@ -292,56 +324,68 @@ func (w *PushWorker) SendDue(ctx context.Context) (int, error) {
 		LIMIT $1
 		FOR UPDATE OF o SKIP LOCKED`, pushBatch, pushMaxAge.Seconds())
 	if err != nil {
-		return 0, err
+		return nil, 0, err
 	}
 	var batch []queuedPush
+	var gone, leased []string
+	claimed := 0
 	for rows.Next() {
 		var p queuedPush
 		if err := rows.Scan(&p.id, &p.notificationID, &p.userID, &p.token, &p.title, &p.body, &p.attempts,
 			&p.notificationType, &p.resourceType, &p.resourceID, &p.reportID, &p.deliveryID,
 			&p.sessionOpen, &p.tooOld); err != nil {
 			rows.Close()
-			return 0, err
+			return nil, 0, err
 		}
+		claimed++
+		if !p.sessionOpen || p.tooOld {
+			gone = append(gone, p.id)
+			continue
+		}
+		leased = append(leased, p.id)
 		batch = append(batch, p)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return 0, err
+		return nil, 0, err
 	}
+	if len(gone) > 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM push_outbox WHERE id = ANY($1::uuid[])`, gone); err != nil {
+			return nil, 0, err
+		}
+	}
+	if len(leased) > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE push_outbox SET next_attempt_at = CURRENT_TIMESTAMP + make_interval(secs => $2)
+			WHERE id = ANY($1::uuid[])`, leased, pushLease.Seconds()); err != nil {
+			return nil, 0, err
+		}
+	}
+	return batch, claimed, tx.Commit(ctx)
+}
 
-	for _, p := range batch {
-		if !p.sessionOpen || p.tooOld {
-			// Signed out, moved to another account, or stale: the inbox still has it.
-			if _, err := tx.Exec(ctx, `DELETE FROM push_outbox WHERE id = $1`, p.id); err != nil {
-				return 0, err
-			}
-			continue
-		}
-		sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-		err := w.sender.Send(sendCtx, PushMessage{Token: p.token, Title: p.title, Body: p.body, Data: p.data()})
-		cancel()
-		var permanent permanentError
-		switch {
-		case err == nil:
-			_, err = tx.Exec(ctx, `DELETE FROM push_outbox WHERE id = $1`, p.id)
-		case errors.Is(err, ErrInvalidToken):
-			// The device's other queued pushes go with it.
-			_, err = tx.Exec(ctx, `DELETE FROM push_devices WHERE token = $1`, p.token)
-		case errors.As(err, &permanent) || p.attempts+1 >= pushMaxAttempts:
-			slog.Warn("push dropped", "notification", p.notificationID, "attempts", p.attempts+1, "error", err)
-			_, err = tx.Exec(ctx, `DELETE FROM push_outbox WHERE id = $1`, p.id)
-		default:
-			slog.Warn("push will be retried", "notification", p.notificationID, "attempts", p.attempts+1, "error", err)
-			_, err = tx.Exec(ctx, `UPDATE push_outbox SET attempts = attempts + 1,
-				next_attempt_at = CURRENT_TIMESTAMP + make_interval(secs => $2) WHERE id = $1`,
-				p.id, backoff(p.attempts+1).Seconds())
-		}
-		if err != nil {
-			return 0, err
-		}
+// send delivers one claimed push and saves the outcome: sent and dropped pushes leave the outbox, a
+// token FCM no longer knows removes its device (and the device's other queued pushes), and anything
+// else waits to be retried.
+func (w *PushWorker) send(ctx context.Context, p queuedPush) error {
+	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
+	err := w.sender.Send(sendCtx, PushMessage{Token: p.token, Title: p.title, Body: p.body, Data: p.data()})
+	cancel()
+	var permanent permanentError
+	switch {
+	case err == nil:
+		_, err = w.db.Exec(ctx, `DELETE FROM push_outbox WHERE id = $1`, p.id)
+	case errors.Is(err, ErrInvalidToken):
+		_, err = w.db.Exec(ctx, `DELETE FROM push_devices WHERE token = $1`, p.token)
+	case errors.As(err, &permanent) || p.attempts+1 >= pushMaxAttempts:
+		slog.Warn("push dropped", "notification", p.notificationID, "attempts", p.attempts+1, "error", err)
+		_, err = w.db.Exec(ctx, `DELETE FROM push_outbox WHERE id = $1`, p.id)
+	default:
+		slog.Warn("push will be retried", "notification", p.notificationID, "attempts", p.attempts+1, "error", err)
+		_, err = w.db.Exec(ctx, `UPDATE push_outbox SET attempts = attempts + 1,
+			next_attempt_at = CURRENT_TIMESTAMP + make_interval(secs => $2) WHERE id = $1`,
+			p.id, backoff(p.attempts+1).Seconds())
 	}
-	return len(batch), tx.Commit(ctx)
+	return err
 }
 
 // backoff waits 30s, 1m, 2m, 4m, 8m between attempts.

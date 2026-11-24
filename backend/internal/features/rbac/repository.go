@@ -13,6 +13,10 @@ var ErrUnknownPermission = errors.New("unknown permission")
 
 var ErrAdminRole = errors.New("admin permissions cannot be changed")
 
+// ErrRegisteredRole refuses permissions for the role public sign-up assigns: anyone can register, so
+// whatever it held would be open to anyone.
+var ErrRegisteredRole = errors.New("the registered user role is given to anyone who signs up, so it cannot hold permissions")
+
 type Repository struct {
 	DB    *pgxpool.Pool
 	audit audit.Auditor
@@ -78,6 +82,9 @@ func (r *Repository) SetRolePermissions(ctx context.Context, id string, codes []
 	}
 	if name == AdminRoleName {
 		return ErrAdminRole
+	}
+	if id == RegisteredUserRoleID && len(codes) > 0 {
+		return ErrRegisteredRole
 	}
 	var unknown bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS (

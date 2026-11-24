@@ -84,3 +84,20 @@ func TestOnlyActiveReviewIsActiveStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestPositionErrorsRefuseNullIsland(t *testing.T) {
+	at := func(lat, lng float64) Details { return Details{Latitude: &lat, Longitude: &lng} }
+	for name, tc := range map[string]struct {
+		d       Details
+		refused bool
+	}{
+		"(0, 0)":            {at(0, 0), true},
+		"Kampala":           {at(0.3476, 32.5825), false},
+		"on the equator":    {at(0, 32.5), false},
+		"missing, required": {Details{}, false},
+	} {
+		if got := tc.d.positionErrors() != nil; got != tc.refused {
+			t.Errorf("%s: refused=%v, want %v", name, got, tc.refused)
+		}
+	}
+}

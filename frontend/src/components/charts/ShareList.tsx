@@ -37,8 +37,10 @@ export function ShareList({
   const total = shares.reduce((sum, share) => sum + share.value, 0);
 
   return (
-    <section className={cn('bg-card rounded-card flex min-w-0 flex-col border p-4', className)}>
-      <div className="mb-4">
+    <section
+      className={cn('bg-card rounded-card flex min-w-0 flex-col border px-4 py-3', className)}
+    >
+      <div className="mb-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold">{title}</h2>
           {isSample ? <SampleBadge /> : null}
@@ -46,9 +48,9 @@ export function ShareList({
         <p className="text-muted-foreground mt-0.5 text-sm">{description}</p>
       </div>
 
-      <ul className="flex flex-col gap-3.5">
+      <ul className="mb-3 flex flex-col gap-3">
         {shares.map((share, index) => (
-          <li key={share.label} className="flex flex-col gap-1.5">
+          <li key={share.label} className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-3">
               <span className="truncate text-sm font-medium">{share.label}</span>
               <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">

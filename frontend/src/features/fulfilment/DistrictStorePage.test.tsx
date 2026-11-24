@@ -71,6 +71,36 @@ describe('District store', () => {
     expect(requests.some((r) => r.url.startsWith('/district-store'))).toBe(false);
   });
 
+  it('shows stock in pieces as a bare number, with no unit column', async () => {
+    renderApp(<DistrictStorePage />, {
+      route,
+      session: districtSession(),
+      replies: [
+        warehouseOrderApi({
+          summary: {
+            ...summary,
+            products: [
+              aProductSummary({
+                product: 'ULINZI Male',
+                unit: 'Pieces',
+                on_hand: 300,
+                usable: 300,
+                reserved: 0,
+              }),
+            ],
+          },
+        }),
+      ],
+    });
+    // On hand and Available to dispatch are both 300; neither says "Pieces".
+    expect(await screen.findAllByText('300', { selector: 'p, span, div' })).not.toHaveLength(0);
+    expect(screen.queryByText(/\d Pieces/)).not.toBeInTheDocument();
+    expect(screen.getByText('0 reserved · excludes expired stock')).toBeInTheDocument();
+    const table = await screen.findByRole('table');
+    expect(within(table).queryByRole('columnheader', { name: 'Unit' })).not.toBeInTheDocument();
+    expect(within(table).getByText('ULINZI Male')).toBeInTheDocument();
+  });
+
   it('shows an empty state for no stock and assignment guidance for no assigned store', async () => {
     const view = renderApp(<DistrictStorePage />, {
       route,

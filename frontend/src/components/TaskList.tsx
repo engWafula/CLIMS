@@ -92,7 +92,16 @@ export function TaskList({
       ) : (
         // Laid out by the list's own width, not the window's: in a narrow column the status sits
         // above the task, and on a phone the button drops under it.
-        <ol className="@container divide-y" aria-label={title}>
+        <ol
+          className="@container divide-y"
+          aria-label={title}
+          // PDF reports print the list as a table.
+          data-pdf-table={JSON.stringify({
+            title,
+            columns: ['Status', 'What', 'Detail'],
+            rows: tasks.map((task) => [task.status.label, task.title, task.detail]),
+          })}
+        >
           {tasks.map((task) => (
             <li
               key={task.id}

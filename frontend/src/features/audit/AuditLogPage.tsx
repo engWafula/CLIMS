@@ -90,7 +90,7 @@ export default function AuditLogPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-section flex flex-col">
       <div className="flex flex-wrap items-center gap-3">
         <FilterTabs
           label="Filter by outcome"

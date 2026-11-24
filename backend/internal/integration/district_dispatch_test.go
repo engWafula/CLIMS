@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"clims-backend/internal/features/stock"
 )
 
 // testDistrictDispatch checks stock a warehouse sends to a district before it orders any: it leaves
@@ -50,7 +52,7 @@ func testDistrictDispatch(t *testing.T, pool *pgxpool.Pool,
 	if free < 10 {
 		t.Fatalf("the warehouse needs free stock for these checks; it has %d", free)
 	}
-	today := time.Now().UTC().Format(time.DateOnly)
+	today := time.Now().In(stock.Kampala).Format(time.DateOnly) // the store summary counts Kampala days
 	summary := func() map[string]any {
 		t.Helper()
 		return request("GET", "/inventory/store-summary?store_id="+warehouse+"&from="+today+"&to="+today, nil, admin, 200)["data"].(map[string]any)
@@ -203,5 +205,27 @@ func testDistrictDispatch(t *testing.T, pool *pgxpool.Pool,
 	scalar(&listed, `SELECT count(*) FROM orders WHERE unrequested`)
 	if listed != 1 {
 		t.Fatalf("unrequested orders: %d", listed)
+	}
+
+	// Stock on its way shows as incoming at the district until it is received.
+	incoming := func() float64 {
+		for _, item := range request("GET", "/inventory/stock?store_id="+district+"&condom_id="+product, nil, admin, 200)["data"].([]any) {
+			if line := item.(map[string]any); line["unit_of_measure_id"] == unit {
+				return line["incoming"].(float64)
+			}
+		}
+		t.Fatal("the district has no balance line for the product it received")
+		return 0
+	}
+	// Earlier checks may have left other shipments to this district on the way.
+	already := incoming()
+	more := request("POST", "/orders/district-dispatches", dispatch(3), warehouseToken, 201)["data"].([]any)
+	if got := incoming(); got != already+3 {
+		t.Fatalf("incoming while 3 more are on the way: %v, was %v", got, already)
+	}
+	request("POST", "/orders/"+more[0].(map[string]any)["id"].(string)+"/actions/receive",
+		map[string]any{"quantity_received": 3}, districtToken, 200)
+	if got := incoming(); got != already {
+		t.Fatalf("incoming after receipt: %v, was %v", got, already)
 	}
 }

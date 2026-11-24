@@ -1,146 +1,89 @@
-import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { RecordedRequest } from '@/test/fakeAdapter';
-import { anEvent, anOrder, envelope } from '@/test/fulfilmentFixtures';
-import { renderApp } from '@/test/renderApp';
+import {
+  analyticsApi,
+  BATCHES,
+  NOTIFICATIONS,
+  routes,
+  STOCK,
+  SUPPLY,
+} from '@/test/analyticsFixtures';
+import { renderApp, sessionWith } from '@/test/renderApp';
 
-import type { DistrictStoreSummary, NationalSummary } from './api';
 import MohDashboardPage from './MohDashboardPage';
 
-const SUMMARY: NationalSummary = {
-  warehouse_stock: [
-    { warehouse: 'NMS', stock: { male: 512_000, female: 38_400 } },
-    { warehouse: 'JMS', stock: { male: 162_000, female: 12_600 } },
-  ],
-  orders_by_status: {
-    queued: 3,
-    on_hold: 4,
-    confirmed: 2,
-    dispatched: 0,
-    in_transit: 2,
-    delivered: 1,
-    received: 3,
-  },
-  stockouts_last_7_days: 11,
-  average_lead_minutes: 200,
-};
-
-const STORES: DistrictStoreSummary[] = [
-  {
-    district: 'Gulu',
-    store: 'Gulu district store',
-    stock: { male: 7250, female: 0 },
-    min_levels: { male: 4000, female: 200 },
-    open_orders: 2,
-  },
-];
-
-function api(summary: { status: number; body?: unknown }) {
-  return (request: RecordedRequest) => {
-    switch (request.url) {
-      case '/national/summary?district=Gulu':
-        return { status: 200, body: envelope({ ...SUMMARY, stockouts_last_7_days: 1 }) };
-      case '/national/hotspot-orders?district=Gulu':
-      case '/national/activity?district=Gulu':
-        return { status: 200, body: envelope([]) };
-      case '/national/summary':
-        return summary;
-      case '/national/district-stores':
-        return { status: 200, body: envelope(STORES) };
-      case '/national/hotspot-orders':
-        return {
-          status: 200,
-          body: envelope([
-            anOrder({ id: 'ORD-0137', status: 'received', created_at: '2026-11-19T09:00:00Z' }),
-            anOrder({ id: 'ORD-0141', status: 'queued', created_at: '2026-11-19T08:00:00Z' }),
-          ]),
-        };
-      case '/national/activity':
-        return { status: 200, body: envelope([anEvent()]) };
-      default:
-        return { status: 404, body: { success: false, message: 'Not found' } };
-    }
-  };
-}
+const MOH = sessionWith(['reports:read', 'orders:read', 'orders:all_stores'], ['moh']);
 
 describe('MohDashboardPage', () => {
-  it('shows the national figures, the latest open order and every district store', async () => {
+  it('lists what needs watching, each linked to the report behind it', async () => {
     renderApp(<MohDashboardPage />, {
       route: '/moh',
-      signedIn: true,
-      replies: [api({ status: 200, body: envelope(SUMMARY) })],
+      session: MOH,
+      replies: [routes(analyticsApi())],
     });
 
-    expect(await screen.findByText('725,000')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open hotspot orders/ })).toHaveTextContent('12');
-    expect(screen.getByRole('link', { name: /Stockouts in the last 7 days/ })).toHaveTextContent(
-      '11',
-    );
-    expect(screen.getByRole('link', { name: /Average lead time/ })).toHaveTextContent('3 h 20 min');
-
+    const list = await screen.findByRole('list', { name: 'Needs watching' });
     expect(
-      await screen.findByRole('heading', { name: 'Latest order ORD-0141' }),
+      within(list).getByText('2 stockout requests past the 7-day deadline'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Audit trail' })).toHaveAttribute(
+    expect(within(list).getByText('1 delivery not acknowledged in time')).toBeInTheDocument();
+    expect(within(list).getByText('4,000 pieces expire within a month')).toBeInTheDocument();
+    expect(within(list).getByText('1 stock line below 2 months of stock')).toBeInTheDocument();
+    expect(within(list).getAllByRole('link', { name: 'See requests' })[0]).toHaveAttribute(
       'href',
-      '/moh/orders/ORD-0141',
+      '/moh/programme-reports?view=notifications&status=awaiting_supply',
     );
-
-    const stages = screen
-      .getByRole('heading', { name: 'Hotspot orders by stage' })
-      .closest('section');
-    expect(stages).toHaveTextContent('With rider');
-
-    const gulu = (await screen.findByRole('cell', { name: 'Gulu' })).closest('tr');
-    expect(gulu).toHaveTextContent('Female stocked out');
-
-    expect(
-      await screen.findByText('Notified a stockout at Kasenyi Landing Site'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Stock, orders and deliveries on this page are illustrative/),
-    ).toBeInTheDocument();
   });
 
-  it('changes the figures, latest order and drill-down links when switching districts', async () => {
-    const user = userEvent.setup();
+  it('shows the national figures and charts from the reports API, with a PDF download', async () => {
     renderApp(<MohDashboardPage />, {
       route: '/moh',
-      signedIn: true,
-      replies: [api({ status: 200, body: envelope(SUMMARY) })],
+      session: MOH,
+      replies: [routes(analyticsApi())],
     });
 
+    expect(await screen.findByText('58.3%')).toBeInTheDocument(); // fulfilment rate
+    expect(screen.getByText('50,300 pcs')).toBeInTheDocument(); // usable stock, two stores
+    expect(screen.getByText('280')).toBeInTheDocument(); // active hotspots
     expect(
-      await screen.findByRole('heading', { name: 'Latest order ORD-0141' }),
+      screen.getByRole('heading', { name: 'Fulfilment rate by district' }),
     ).toBeInTheDocument();
-    const district = screen.getByRole('combobox', { name: 'District' });
-    await user.click(district);
-    await user.click(await screen.findByRole('option', { name: 'Gulu' }));
-
-    expect(await screen.findByText('No open hotspot orders')).toBeInTheDocument();
-    const stockouts = screen.getByRole('link', { name: /Stockouts in the last 7 days/ });
-    expect(stockouts).toHaveTextContent('1');
-    expect(stockouts).toHaveAttribute('href', '/moh/orders?district=Gulu');
-    expect(screen.queryByText('Hotspot orders, national')).not.toBeInTheDocument();
-
-    await user.click(district);
-    await user.click(await screen.findByRole('option', { name: 'All districts' }));
-    expect(
-      await screen.findByRole('heading', { name: 'Latest order ORD-0141' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Warehouse order pipeline' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeEnabled();
+    expect(screen.getByRole('region', { name: 'Report filters' })).toBeInTheDocument();
   });
 
-  it('explains when the national figures cannot be loaded, and still shows the rest', async () => {
+  it('says so when nothing needs watching', async () => {
     renderApp(<MohDashboardPage />, {
       route: '/moh',
-      signedIn: true,
-      // A refusal is not retried, so the error shows at once.
-      replies: [api({ status: 403, body: { success: false, message: 'Forbidden' } })],
+      session: MOH,
+      replies: [
+        routes(
+          analyticsApi({
+            '/reports/notifications': {
+              ...NOTIFICATIONS,
+              acknowledgement_overdue: 0,
+              backlog: { open: 0, oldest_raised_at: null },
+              deadline: { ...NOTIFICATIONS.deadline, late_pending: 0 },
+            },
+            '/reports/warehouse-requests': { ...SUPPLY, total: { ...SUPPLY.total, pending: 0 } },
+            '/reports/batches': { ...BATCHES, lines: [] },
+            '/reports/stock': { ...STOCK, lines: [] },
+          }),
+        ),
+      ],
     });
+    expect(await screen.findByText('Nothing needs watching')).toBeInTheDocument();
+  });
 
-    expect(await screen.findByText('Could not load the national figures')).toBeInTheDocument();
-    expect(await screen.findByRole('cell', { name: 'Gulu' })).toBeInTheDocument();
+  it('says a failed report failed, rather than that nothing needs watching', async () => {
+    renderApp(<MohDashboardPage />, {
+      route: '/moh',
+      session: MOH,
+      replies: [routes(analyticsApi({ '/reports/warehouse-requests': new Error('boom') }))],
+    });
+    expect(await screen.findByText("Could not check the programme's figures")).toBeInTheDocument();
+    expect(screen.queryByText('Nothing needs watching')).not.toBeInTheDocument();
   });
 });

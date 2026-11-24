@@ -85,6 +85,9 @@ func (h *Handler) submit(c fiber.Ctx) error {
 	if err := validator.Validate.Struct(input); err != nil {
 		return response.Error(c, 422, "validation failed", validator.FormatErrors(err))
 	}
+	if fields := input.positionErrors(); fields != nil {
+		return response.Error(c, 422, "validation failed", fields)
+	}
 	id, err := h.repo.submit(c.Context(), users.CurrentUser(c).ID, input)
 	if err != nil {
 		return hotSpotError(c, err)
@@ -104,6 +107,9 @@ func (h *Handler) update(c fiber.Ctx) error {
 	input.Normalize()
 	if err = validator.Validate.Struct(input); err != nil {
 		return response.Error(c, 422, "validation failed", validator.FormatErrors(err))
+	}
+	if fields := input.positionErrors(); fields != nil {
+		return response.Error(c, 422, "validation failed", fields)
 	}
 	if err = h.repo.update(c.Context(), users.CurrentUser(c).ID, id, input); err != nil {
 		return hotSpotError(c, err)

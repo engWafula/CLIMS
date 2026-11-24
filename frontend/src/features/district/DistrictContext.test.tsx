@@ -6,7 +6,7 @@ import { envelope } from '@/test/fulfilmentFixtures';
 import { testRouter } from '@/test/navigation';
 import { renderApp } from '@/test/renderApp';
 
-import { DistrictContextProvider, useDistrictContext } from './DistrictContext';
+import { DistrictContextProvider, DistrictSelect, useDistrictContext } from './DistrictContext';
 
 const DISTRICTS = [
   { id: 'd-wakiso', name: 'Wakiso' },
@@ -19,9 +19,11 @@ function SelectedDistrict() {
   return <output>{district?.district ?? 'Unfiltered'}</output>;
 }
 
-function renderAt(route: string) {
+function renderAt(route: string, { placesMenu = true } = {}) {
   return renderApp(
     <DistrictContextProvider>
+      {/* The warehouse pages place the menu in their own toolbar row. */}
+      {placesMenu ? <DistrictSelect /> : null}
       <SelectedDistrict />
     </DistrictContextProvider>,
     {
@@ -72,4 +74,11 @@ it('ignores a district in the address that is not in the list', async () => {
   await waitFor(() => expect(selector).toBeEnabled());
   expect(screen.getByRole('status')).toHaveTextContent('Unfiltered');
   expect(selector).toHaveTextContent('All districts');
+});
+
+it('leaves the menu to the warehouse page, which puts it beside the warehouse name', () => {
+  renderAt('/warehouse?store=NMS', { placesMenu: false });
+
+  expect(screen.queryByRole('combobox', { name: 'District' })).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Unfiltered');
 });

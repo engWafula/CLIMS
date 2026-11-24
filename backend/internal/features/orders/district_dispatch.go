@@ -15,6 +15,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -77,9 +78,31 @@ func (h *Handler) districtDispatch(c fiber.Ctx) error {
 		if errors.Is(err, errNoFreeStock) {
 			return response.Error(c, 409, err.Error(), nil)
 		}
+		if message := lineMessage(err); message != "" {
+			return response.Error(c, 422, message, nil)
+		}
 		return workflowError(c, err)
 	}
 	return response.Success(c, 201, "dispatched to the district; it records the receipt when the stock arrives", created)
+}
+
+// lineMessage names the line for the failures workflowError and orderError answer with a fixed
+// message, which would drop the `line N:` the client relies on; "" for every other error.
+func lineMessage(err error) string {
+	var failed lineError
+	if !errors.As(err, &failed) {
+		return ""
+	}
+	var dbError *pgconn.PgError
+	switch {
+	case errors.Is(err, errInactiveProduct):
+		return fmt.Sprintf("line %d: this product is inactive and cannot be sent", failed.line)
+	case errors.As(err, &dbError) && dbError.Code == "23503":
+		return fmt.Sprintf("line %d: a referenced store, product or unit does not exist", failed.line)
+	case errors.As(err, &dbError) && dbError.Code == "23514":
+		return fmt.Sprintf("line %d: the order's quantities do not fit together", failed.line)
+	}
+	return ""
 }
 
 // validDistrictDispatch normalises the input and names the first problem, with the field it is

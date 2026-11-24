@@ -28,7 +28,7 @@ const NO_WORKSPACE_COPY: Record<
   mobile: {
     title: 'Use the CLIMS mobile app',
     body: (roles) =>
-      `Your role (${roles}) does its work in the field app: reporting stockouts, confirming deliveries and recording drops. Sign in on your phone with this same account.`,
+      `Your role (${roles}) works in the field app, not on the web: mapping hotspots, reporting stockouts, confirming deliveries and recording drops. Sign in on your phone with this same account.`,
   },
   unassigned: {
     title: 'Your account has no web workspace yet',
@@ -130,11 +130,23 @@ export function ReadOnlyNotice({ workspace }: { workspace: Workspace }) {
   return (
     <Alert variant="info" role="note">
       <Eye aria-hidden="true" />
-      <AlertTitle>You are viewing the {workspace.label} workspace read-only</AlertTitle>
-      <AlertDescription>
-        You can open every page and export what you see. Actions such as confirming, dispatching or
-        submitting are for the team that works here.
-      </AlertDescription>
+      {workspace.id === 'moh' ? (
+        <>
+          <AlertTitle>Oversight view: read-only</AlertTitle>
+          <AlertDescription>
+            You can open every page, filter it and download what you see. Changes are made by
+            administrators and by the teams that do the work.
+          </AlertDescription>
+        </>
+      ) : (
+        <>
+          <AlertTitle>You are viewing the {workspace.label} workspace read-only</AlertTitle>
+          <AlertDescription>
+            You can open every page and export what you see. Actions such as confirming, dispatching
+            or submitting are for the team that works here.
+          </AlertDescription>
+        </>
+      )}
     </Alert>
   );
 }

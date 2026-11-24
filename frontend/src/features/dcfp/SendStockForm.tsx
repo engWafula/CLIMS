@@ -11,6 +11,7 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -93,8 +94,8 @@ export function SendStockForm({ report, storeId, onCancel, onSent, onReject, rej
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>
-          Enter how many of each product to send, in its pack. Batches leave the district store
-          earliest expiry first, and {contact} confirms what arrives.
+          Enter how many to send, in each product&apos;s pack. The earliest expiry leaves first, and{' '}
+          {contact} confirms what arrives.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -304,7 +305,7 @@ function SendStockFields({ report, storeId, onCancel, onSent, onReject, rejectRe
     <form
       onSubmit={submit}
       noValidate
-      className="flex flex-col gap-4"
+      className="@container flex flex-col gap-3"
       aria-label={`Send stock to ${report.hot_spot.name}`}
     >
       {groups.map((group) => (
@@ -318,7 +319,7 @@ function SendStockFields({ report, storeId, onCancel, onSent, onReject, rejectRe
             ) : null}
           </legend>
           {group.choices.length === 0 ? (
-            <p className="text-muted-foreground border-t py-3 text-sm">
+            <p className="text-muted-foreground border-t py-2 text-sm">
               None in the district store.{' '}
               {canOrder ? (
                 <Link
@@ -341,7 +342,7 @@ function SendStockFields({ report, storeId, onCancel, onSent, onReject, rejectRe
                 return (
                   <li
                     key={choice.product.id}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-2"
                   >
                     <div className="min-w-0">
                       <Label htmlFor={id} className="leading-snug font-medium break-words">
@@ -396,45 +397,50 @@ function SendStockFields({ report, storeId, onCancel, onSent, onReject, rejectRe
         </p>
       ) : null}
 
-      <SelectField
-        label="Delivery agent"
-        value={riderId}
-        onValueChange={setRiderId}
-        options={[
-          { value: NO_RIDER, label: 'No delivery agent' },
-          ...(riders.data ?? []).map((rider) => ({
-            value: rider.id,
-            label: rider.phone ? `${rider.name} · ${rider.phone}` : rider.name,
-          })),
-        ]}
-        placeholder="No delivery agent"
-        isLoading={riders.isPending}
-        loadError={riders.error ? 'Could not load the delivery agents.' : undefined}
-        disabled={locked}
-        description={
-          riders.isSuccess && riders.data.length === 0
-            ? `No delivery agents work in ${report.hot_spot.district ?? 'this district'} yet.`
-            : 'Only delivery agents in the hotspot’s district are listed. They see this send in the field app.'
-        }
-        error={serverError?.fieldErrors.rider_id?.[0]}
-      />
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${formId}-note`}>
-          Note <span className="text-muted-foreground font-normal">(optional)</span>
-        </Label>
-        <Textarea
-          id={`${formId}-note`}
-          name="note"
-          value={note}
-          onChange={(event) => {
-            setNote(event.target.value);
-          }}
-          maxLength={4000}
-          rows={2}
+      {/* Side by side once the card is wide enough: both are optional and short. */}
+      <div className="grid gap-3 @xl:grid-cols-2 @xl:items-start">
+        <SelectField
+          label="Delivery agent"
+          value={riderId}
+          onValueChange={setRiderId}
+          options={[
+            { value: NO_RIDER, label: 'No delivery agent' },
+            ...(riders.data ?? []).map((rider) => ({
+              value: rider.id,
+              label: rider.phone ? `${rider.name} · ${rider.phone}` : rider.name,
+            })),
+          ]}
+          placeholder="No delivery agent"
+          isLoading={riders.isPending}
+          loadError={riders.error ? 'Could not load the delivery agents.' : undefined}
           disabled={locked}
-          placeholder="Anything the hotspot should know…"
+          description={
+            riders.isSuccess && riders.data.length === 0
+              ? `No delivery agents work in ${report.hot_spot.district ?? 'this district'} yet.`
+              : 'Only delivery agents in the hotspot’s district are listed. They see this send in the field app.'
+          }
+          error={serverError?.fieldErrors.rider_id?.[0]}
         />
+
+        {/* Field and FieldLabel, as in SelectField, so the two labels line up side by side. */}
+        <Field>
+          <FieldLabel htmlFor={`${formId}-note`}>
+            Note <span className="text-muted-foreground font-normal">(optional)</span>
+          </FieldLabel>
+          <Textarea
+            id={`${formId}-note`}
+            name="note"
+            value={note}
+            onChange={(event) => {
+              setNote(event.target.value);
+            }}
+            maxLength={4000}
+            rows={2}
+            disabled={locked}
+            placeholder="Anything the hotspot should know…"
+            className="min-h-16"
+          />
+        </Field>
       </div>
 
       {needsReason ? (
@@ -479,7 +485,7 @@ function SendStockFields({ report, storeId, onCancel, onSent, onReject, rejectRe
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm" aria-live="polite">
           {total > 0 ? (
             <>

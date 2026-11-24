@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/states/EmptyState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { PageSkeleton, type PageSkeletonLayout } from '@/components/states/PageSkeleton';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { ApiError } from '@/lib/api';
 
 interface RecordViewProps<Data> {
@@ -40,7 +41,11 @@ interface RecordViewProps<Data> {
  */
 export function RecordView<Data>({ query, layout, noun, back, children }: RecordViewProps<Data>) {
   if (query.isPending) return <PageSkeleton layout={layout} />;
-  if (query.isError) {
+  const canKeepData =
+    query.data !== undefined &&
+    query.isRefetchError &&
+    ['network', 'timeout', 'server'].includes(query.error.kind);
+  if (query.isError && !canKeepData) {
     if (query.error.kind === 'not_found') {
       return (
         <div className="bg-card rounded-card border">
@@ -68,5 +73,25 @@ export function RecordView<Data>({ query, layout, noun, back, children }: Record
       </div>
     );
   }
-  return <>{children(query.data)}</>;
+  return (
+    <>
+      {canKeepData ? (
+        <Alert variant="warning">
+          <AlertTitle>Could not refresh this {noun}</AlertTitle>
+          <AlertDescription>
+            Showing the last loaded information.{' '}
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 underline"
+              onClick={() => void query.refetch()}
+            >
+              Try again
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {children(query.data)}
+    </>
+  );
 }

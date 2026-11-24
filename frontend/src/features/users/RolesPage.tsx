@@ -20,6 +20,7 @@ import type { Role } from './api';
 import {
   groupPermissions,
   isAdminRole,
+  isSignUpRole,
   permissionLabel,
   roleDescription,
   roleLabel,
@@ -79,7 +80,7 @@ export default function RolesPage() {
   ];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+    <div className="gap-section grid lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
       <nav aria-label="Roles">
         <ul className="bg-card flex flex-col gap-1 rounded-xl border p-2">
           {list.map((role) => {
@@ -134,7 +135,9 @@ interface RolePermissionsProps {
 function RolePermissions({ role, codes, memberCount }: RolePermissionsProps) {
   const save = useSetRolePermissions();
   const can = useCan();
-  const locked = isAdminRole(role);
+  const admin = isAdminRole(role);
+  // Permissions it somehow holds can still be taken away; nothing can be granted.
+  const locked = admin || (isSignUpRole(role) && role.permissions.length === 0);
   // Without `roles:manage` the API refuses every change, so the switches only show the state.
   const readOnly = !locked && !can('roles:manage');
   const description = roleDescription(role);
@@ -176,8 +179,9 @@ function RolePermissions({ role, codes, memberCount }: RolePermissionsProps) {
             <Lock aria-hidden="true" />
             <AlertTitle>This role cannot be changed</AlertTitle>
             <AlertDescription>
-              The administrator role always holds every permission, so someone can always manage
-              access.
+              {admin
+                ? 'The administrator role always holds every permission, so someone can always manage access.'
+                : 'Anyone can create an account with this role, so it holds no permissions. Give each new account the role it needs instead.'}
             </AlertDescription>
           </Alert>
         ) : null}

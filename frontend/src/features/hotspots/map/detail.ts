@@ -60,7 +60,8 @@ export async function listHotspotEvents(
 
 export function useHotspotDetail(id: string | null) {
   return useApiQuery(
-    ['hotspots', 'detail', id],
+    // Not hotspotKeys.detail: that caches the flat hotspot, this caches { hotspot, comments }.
+    ['hotspots', 'map-detail', id],
     (http, signal) => getHotspotDetail(http, id ?? '', signal),
     { enabled: id !== null },
   );

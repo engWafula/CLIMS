@@ -1,6 +1,6 @@
 import axios, { type AxiosAdapter, type Method } from 'axios';
 
-import { errorFromResponse, toApiError } from './errors';
+import { ApiError, errorFromResponse, toApiError } from './errors';
 
 export interface RequestOptions {
   /** Aborts the request, e.g. when the component that asked for it unmounts. */
@@ -10,6 +10,12 @@ export interface RequestOptions {
    * session. Sign-in uses this: a 401 there means wrong credentials.
    */
   anonymous?: boolean;
+  /**
+   * Send with this token instead of the session's, for a session this browser
+   * never kept (a field account refused at web sign-in). Like `anonymous`, a
+   * 401 is then not an expired session.
+   */
+  token?: string;
 }
 
 /** The transport every feature talks through. Returns response bodies, throws `ApiError`. */
@@ -25,8 +31,13 @@ export interface HttpClientOptions {
   baseUrl: string;
   /** Read on every request so a sign-in or sign-out takes effect immediately. */
   getToken: () => string | null;
-  /** Called when an authenticated request is rejected with 401 and could not be refreshed. */
-  onUnauthorized: () => void;
+  /** Changes when the signed-in account changes, so old requests cannot affect a new session. */
+  getSessionGeneration?: () => number;
+  /**
+   * Called when an authenticated request is rejected with 401 and could not be
+   * refreshed, with the token it was sent with (`null` when it had none).
+   */
+  onUnauthorized: (rejectedToken: string | null) => void;
   /**
    * Renews the session after a 401 on `rejectedToken`, resolving `true` when
    * the request is worth retrying with the current token. Without it, a 401
@@ -69,6 +80,7 @@ function unwrapEnvelope(body: unknown): unknown {
 export function createHttpClient({
   baseUrl,
   getToken,
+  getSessionGeneration,
   onUnauthorized,
   refresh,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -87,9 +99,19 @@ export function createHttpClient({
     body: unknown,
     options: RequestOptions = {},
     isRetry = false,
+    originalGeneration?: number,
   ): Promise<unknown> {
-    const { signal, anonymous = false } = options;
-    const token = anonymous ? null : getToken();
+    const { signal, token: ownToken } = options;
+    const anonymous = options.anonymous === true || ownToken !== undefined;
+    const token = ownToken ?? (anonymous ? null : getToken());
+    const generation = isRetry ? originalGeneration : getSessionGeneration?.();
+    const sessionChanged = () =>
+      !anonymous && generation !== undefined && getSessionGeneration?.() !== generation;
+    const cancelled = () =>
+      new ApiError({
+        kind: 'cancelled',
+        message: 'The session changed while the request was in progress.',
+      });
 
     try {
       const response = await instance.request<unknown>({
@@ -100,19 +122,23 @@ export function createHttpClient({
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
+      if (sessionChanged()) throw cancelled();
       const envelopeStatus = readEnvelopeStatus(response.data);
       if (envelopeStatus !== null && envelopeStatus >= 400) {
         throw errorFromResponse(envelopeStatus, response.data);
       }
       return unwrapEnvelope(response.data);
     } catch (error) {
+      if (sessionChanged()) throw cancelled();
       const apiError = toApiError(error);
       if (apiError.kind !== 'unauthorized' || anonymous) throw apiError;
       // An expired access token is renewed once and the request retried.
       if (!isRetry && token && refresh && (await refresh(token).catch(() => false))) {
-        return request(method, path, body, options, true);
+        if (sessionChanged()) throw cancelled();
+        return request(method, path, body, options, true, generation);
       }
-      onUnauthorized();
+      if (sessionChanged()) throw cancelled();
+      onUnauthorized(token);
       throw apiError;
     }
   }

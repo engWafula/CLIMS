@@ -650,10 +650,15 @@ export function DataTable<Row>({
                 <TableBody>
                   {isLoading && !hasRows ? (
                     Array.from({ length: SKELETON_ROWS }, (_, rowIndex) => (
-                      <TableRow key={rowIndex} className="hover:bg-transparent">
+                      <TableRow key={rowIndex} aria-hidden="true" className="hover:bg-transparent">
                         {Array.from({ length: columnCount }, (_, cellIndex) => (
                           <TableCell key={cellIndex} className={cn(EDGE_CLASS, rowPadding)}>
-                            <Skeleton className="h-4 w-full max-w-32" />
+                            <Skeleton
+                              className={cn(
+                                'h-3.5 max-w-32',
+                                ['w-3/4', 'w-1/2', 'w-5/6', 'w-2/3'][(rowIndex + cellIndex) % 4],
+                              )}
+                            />
                           </TableCell>
                         ))}
                       </TableRow>

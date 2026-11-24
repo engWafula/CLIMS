@@ -164,6 +164,11 @@ func TestIdentitySyncRepository(t *testing.T) {
 		if _, err := repo.RevokeOIDCSessions(ctx, issuer, subject); err != nil {
 			t.Fatal(err)
 		}
+		var audited int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action = 'user.sessions_revoked'
+			AND target_id = $1 AND details->>'source' = 'identity_sync'`, account).Scan(&audited); err != nil || audited != 1 {
+			t.Fatalf("identity sync revokes audited: %d %v", audited, err)
+		}
 		if _, err := repo.CreateOIDCSession(ctx, issuer, subject, &issued, "ua", ""); !errors.Is(err, users.ErrSignInRevoked) {
 			t.Fatalf("sign-in with a token issued before the revoke: %v", err)
 		}

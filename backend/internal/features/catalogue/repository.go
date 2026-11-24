@@ -101,6 +101,7 @@ var units = lookupKind{
 		OR EXISTS (SELECT 1 FROM orders o WHERE o.unit_of_measure_id = t.id)
 		OR EXISTS (SELECT 1 FROM order_store_stock s WHERE s.unit_of_measure_id = t.id)
 		OR EXISTS (SELECT 1 FROM inventory_movements m WHERE m.unit_of_measure_id = t.id)
+		OR EXISTS (SELECT 1 FROM hotspot_delivery_lines l WHERE l.unit_of_measure_id = t.id)
 		OR (t.legacy_id IS NOT NULL
 			AND EXISTS (SELECT 1 FROM condom_inventories ci WHERE btrim(ci.unit_of_measure_id) = t.legacy_id))`,
 	validate: func(name string, note *string) validationError {
@@ -117,11 +118,14 @@ func check(fields any) validationError {
 	return nil
 }
 
-// productInUse is true when stock or order records reference the product aliased c.
+// productInUse is true when stock, order, stockout or hotspot delivery records reference the product
+// aliased c.
 // Legacy stock tables still reference products by their legacy ID.
 const productInUse = `(EXISTS (SELECT 1 FROM orders o WHERE o.condom_id = c.id)
 	OR EXISTS (SELECT 1 FROM order_store_stock s WHERE s.condom_id = c.id)
 	OR EXISTS (SELECT 1 FROM inventory_movements m WHERE m.condom_id = c.id)
+	OR EXISTS (SELECT 1 FROM stockout_reports r WHERE r.condom_id = c.id)
+	OR EXISTS (SELECT 1 FROM hotspot_delivery_lines l WHERE l.condom_id = c.id)
 	OR (c.legacy_id IS NOT NULL AND (
 		EXISTS (SELECT 1 FROM condom_inventories ci WHERE btrim(ci.condom_id) = c.legacy_id)
 		OR EXISTS (SELECT 1 FROM hot_spot_stocks hs WHERE btrim(hs.condom_id) = c.legacy_id))))`

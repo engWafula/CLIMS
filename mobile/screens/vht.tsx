@@ -53,6 +53,7 @@ import {
 import { ago, chip, items, orderChip, PRODUCTS, toInt } from "@/lib/format";
 import { useNav } from "@/lib/nav";
 import { useMe } from "@/lib/session";
+import { isClosedOrder } from "@/lib/orders";
 import { useStore, type RefreshResult } from "@/lib/store";
 import type { Order, Qty } from "@/lib/types";
 import { call, firstName, hotspotChip, inactiveNote, matches, shortId, stockStats } from "./common";
@@ -66,7 +67,7 @@ export function useMine() {
     ? s.hotspots.filter((h) => h.vhts.includes(me.name) || h.contact === me.name)
     : s.hotspots.filter((h) => h.source === "api");
   const openOf = (hid: string): Order | undefined =>
-    s.orders.find((o) => o.hotspotId === hid && o.status !== "received");
+    s.orders.find((o) => o.hotspotId === hid && !isClosedOrder(o.status));
   return { mine, openOf };
 }
 
@@ -200,7 +201,8 @@ export function VhtHotspot({ id }: { id: string }) {
   const me = useMe();
   const { s } = useStore();
   const { mine, openOf } = useMine();
-  const h = s.hotspots.find((x) => x.id === id) ?? mine[0];
+  // Only the hotspot asked for: a notification can name one this phone hasn't loaded.
+  const h = s.hotspots.find((x) => x.id === id);
   if (!h)
     return (
       <Screen title="Hotspot" backLabel="Hotspots">

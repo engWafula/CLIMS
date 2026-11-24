@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 /** Who took an action. Each has its own dot colour (`--role-*` tokens). */
@@ -86,5 +87,25 @@ export function ActivityTimeline({
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Placeholder shaped like the event feed while its history is fetched. */
+export function ActivityTimelineSkeleton({ label = 'Loading history…' }: { label?: string }) {
+  return (
+    <div role="status" aria-busy="true">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden="true" className="flex flex-col gap-4">
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="flex gap-3">
+            <Skeleton className="mt-1 size-2.5 shrink-0 rounded-full" />
+            <div className="flex flex-1 flex-col gap-2">
+              <Skeleton className={cn('h-3.5', row === 1 ? 'w-3/5' : 'w-4/5')} />
+              <Skeleton className="h-3 w-2/5" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

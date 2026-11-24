@@ -3,11 +3,34 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
+import { ComboboxField } from './ComboboxField';
 import { FormDialog } from './FormDialog';
 import { TextareaField } from './TextareaField';
 import { TextField } from './TextField';
 
 describe('shared form accessibility', () => {
+  it('shows a labelled placeholder while combobox options load, then enables the choice', () => {
+    const props = {
+      label: 'District',
+      value: '',
+      onValueChange: () => undefined,
+      options: [{ value: '1', label: 'Wakiso' }],
+      placeholder: 'Choose a district',
+      searchLabel: 'Search districts',
+      noun: 'districts',
+      required: true,
+    };
+    const { rerender, container } = render(<ComboboxField {...props} isLoading />);
+    const field = screen.getByRole('combobox', { name: 'District' });
+    expect(field).toBeDisabled();
+    expect(field).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent('Loading districts…');
+    expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+    rerender(<ComboboxField {...props} />);
+    expect(screen.getByRole('combobox', { name: 'District' })).toBeEnabled();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it.each([TextField, TextareaField])(
     'keeps labels, guidance, errors and external descriptions connected',
     (Field) => {

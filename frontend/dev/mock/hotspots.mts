@@ -92,7 +92,7 @@ const placeId = (g: number, n: number) =>
  * `/subcounties?district_id=`. The three districts the hotspot screens have
  * always used keep their ids.
  */
-const REGIONS = [
+export const REGIONS = [
   { id: placeId(1, 1), name: 'Acholi' },
   { id: placeId(1, 2), name: 'Busoga' },
   { id: placeId(1, 3), name: 'Kampala' },
@@ -102,7 +102,7 @@ const REGIONS = [
   { id: placeId(1, 7), name: 'Lango' },
 ];
 
-const DISTRICTS_BY_REGION = [
+export const DISTRICTS_BY_REGION = [
   { id: WAKISO, name: 'Wakiso', region_id: placeId(1, 5) },
   { id: placeId(2, 1), name: 'Mpigi', region_id: placeId(1, 5) },
   { id: MUKONO, name: 'Mukono', region_id: placeId(1, 4) },

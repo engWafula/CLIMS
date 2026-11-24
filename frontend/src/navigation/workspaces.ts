@@ -14,7 +14,6 @@ import {
   Tags,
   Truck,
   Users,
-  UsersRound,
   Warehouse,
 } from 'lucide-react';
 
@@ -60,13 +59,13 @@ function monthlyReports(path: string, description: string): NavItem {
 function programmeReports(path: string, description: string): NavItem {
   return {
     id: 'programme-reports',
-    label: 'Programme reports',
+    label: 'Analytics',
     icon: ChartColumn,
     pages: [
       {
         path,
-        tab: 'Programme reports',
-        title: 'Programme reports',
+        tab: 'Analytics',
+        title: 'Reports and analytics',
         description,
         layout: 'table',
         permission: 'reports:read',
@@ -148,20 +147,27 @@ export const workspaces: readonly Workspace[] = [
             pages: [
               {
                 path: '/moh/orders',
-                tab: 'Hotspot orders',
+                tab: 'Hotspot requests',
                 title: 'Orders',
-                description: 'Every hotspot order with its full audit trail.',
+                description:
+                  'Every hotspot stockout request in the country, and how its district answered it. Read-only.',
                 layout: 'table',
+                permission: 'orders:read',
               },
               {
                 path: '/moh/orders/warehouse',
-                tab: 'Warehouse requests',
+                tab: 'District orders',
                 title: 'Orders',
-                description: 'District store orders to NMS and JMS.',
+                description:
+                  'District store orders to NMS and JMS, from request to receipt. Read-only.',
                 layout: 'table',
+                permission: 'orders:read',
               },
             ],
-            details: [{ path: '/moh/orders/[id]', label: 'Order audit trail', layout: 'detail' }],
+            details: [
+              { path: '/moh/orders/[id]', label: 'Hotspot request', layout: 'stockout' },
+              { path: '/moh/orders/warehouse/[id]', label: 'District order', layout: 'detail' },
+            ],
           },
           {
             id: 'reports',
@@ -181,7 +187,7 @@ export const workspaces: readonly Workspace[] = [
           },
           programmeReports(
             '/moh/programme-reports',
-            'Notification fulfilment, warehouse requests, stock, expiry and HMIS 105 readiness from CLIMS records, with downloads and approved versions.',
+            'National analytics: stockout requests, warehouse orders, stock, expiry, hotspot coverage and HMIS 105, with filters, PDF, CSV and Excel downloads and approved versions.',
           ),
           // Distribution, procurement and the hotspot map predate the prototype, which has no
           // equivalent for them. They stay until it is decided whether MOH still needs them.
@@ -331,7 +337,7 @@ export const workspaces: readonly Workspace[] = [
               },
             ],
             details: [
-              { path: '/dcfp/stockouts/[id]', label: 'Stockout request', layout: 'detail' },
+              { path: '/dcfp/stockouts/[id]', label: 'Stockout request', layout: 'stockout' },
             ],
           },
           {
@@ -419,7 +425,7 @@ export const workspaces: readonly Workspace[] = [
           ),
           programmeReports(
             '/dcfp/programme-reports',
-            "Your district's notification fulfilment, warehouse requests, stock, expiry and HMIS 105 readiness, with downloads and approved versions.",
+            "Your district's analytics: stockout requests, warehouse orders, stock, expiry, hotspot coverage and HMIS 105, with filters and PDF, CSV and Excel downloads.",
           ),
         ],
       },
@@ -495,39 +501,11 @@ export const workspaces: readonly Workspace[] = [
           ),
           programmeReports(
             '/warehouse/programme-reports',
-            'Warehouse requests, store stock and expiry from CLIMS records, with downloads and approved versions.',
+            "The warehouse's analytics: district orders, stock flow and coverage, and expiry risk, with filters and PDF, CSV and Excel downloads.",
           ),
         ],
       },
     ],
   },
-  {
-    // The prototype puts VHTs in the mobile app only; this web page is their hotspot submissions.
-    id: 'vht',
-    label: 'Village health team',
-    icon: UsersRound,
-    basePath: '/vht',
-    sections: [
-      {
-        label: 'Network',
-        items: [
-          {
-            id: 'hotspots',
-            label: 'My hotspots',
-            icon: MapPin,
-            pages: [
-              {
-                path: '/vht',
-                tab: 'My hotspots',
-                title: 'My hotspots',
-                description:
-                  'Hotspots you identified, and where each one is in district verification.',
-                layout: 'table',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
+  // VHTs, hotspot managers and delivery agents have no workspace: they use the mobile app only.
 ];

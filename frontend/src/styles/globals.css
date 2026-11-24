@@ -14,8 +14,10 @@
   /* Top bar height, shared by the app header and the sidebar header. */
   --spacing-header: 3rem;
   /* Page rhythm: between a page's sections and its side-by-side columns
-     (`gap-section`). Inside a card, groups sit 12px apart and cards pad 16px. */
-  --spacing-section: 1rem;
+     (`gap-section`). The same 12px as the gaps in `StatCardGrid`, so a row of
+     stat cards and the columns under it share their gutters. Inside a card,
+     groups sit 12px apart; cards pad 16px at the sides, 12px top and bottom. */
+  --spacing-section: 0.75rem;
 }
 
 @theme inline {

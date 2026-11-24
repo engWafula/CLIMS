@@ -18,7 +18,7 @@ export function WebAccessList({ roleNames }: { roleNames: readonly string[] }) {
       <p className="text-muted-foreground flex items-start gap-2 text-sm">
         <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         {mobile
-          ? 'Works in the mobile app; the web shows them a pointer to it.'
+          ? 'Works only in the mobile app. Web sign-in refuses them and points them to it.'
           : 'No role of theirs opens a web workspace, so they see a notice after signing in.'}
       </p>
     );

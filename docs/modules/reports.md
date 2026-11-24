@@ -16,6 +16,8 @@ The reports module serves the programme reports described in the reporting requi
 | GET    | `/api/v1/reports/settings`                   | `reports:read`      |
 | POST   | `/api/v1/reports/settings`                   | `reports:configure` |
 | GET    | `/api/v1/reports/hmis-105`                   | `reports:read`      |
+| GET    | `/api/v1/reports/trends`                     | `reports:read`      |
+| GET    | `/api/v1/reports/hotspots`                   | `reports:read`      |
 | GET    | `/api/v1/reports/export/{report}`            | `reports:read`      |
 | GET    | `/api/v1/reports/versions`                   | `reports:read`      |
 | POST   | `/api/v1/reports/versions`                   | `reports:approve`   |
@@ -56,6 +58,8 @@ A hotspot stockout notification names Male, Female or Both and no quantity. The 
 - **Fully received, partly received, pending and rejected**: a request is fully received when the district counted at least the quantity requested. Pending requests are still open. A request the warehouse rejected is counted as rejected, not pending; it stays in the requested pieces and the fulfilment rate, with nothing approved.
 - **Response**: median hours from the request to the district's receipt, with the pending count and the oldest pending age. Rejected requests are not pending.
 - **Unconverted**: a quality issue. Quantities convert to pieces with the product's `pieces_per_unit` in its catalogue unit; requests in another unit, or for a product without pieces per unit, are left out of the piece totals and counted here.
+- **Awaiting unit**: a district may order a category and a number without a product; the warehouse picks the product, and with it the unit, at review. Until then the request is counted in `awaiting_unit` and left out of the piece totals. It is not a quality issue, so it is no longer counted as unconverted.
+- **Dispatches without a request** (`dispatches_without_request`): stock a warehouse sent to a district nobody asked for (district dispatches, [orders](orders.md)), in pieces issued and received and the number still in transit. It is reported apart and is not part of the request totals or the fulfilment rate.
 
 `GET /api/v1/reports/warehouse-requests/records` lists the requests behind those totals, newest first, in units and pieces. Filter both by `warehouse_store_id`, `district_id` and `category`.
 
@@ -77,6 +81,21 @@ Stock is held in batches, each with an optional batch number and expiry date; se
 `GET /api/v1/reports/expiry-exceptions` lists the batches with under one month left that left a store in the period, with the documented reason, who authorised it and the rule version, newest first.
 
 The draft's six-month warehouse and three-month district dispatch targets are not enforced: each shipped batch's `days_remaining` on the dispatch date is recorded, so they can be reported once approved.
+
+## Trends
+
+`GET /api/v1/reports/trends` gives each measure per `day`, `week` (from Monday) or `month` (from the 1st), in Kampala time, over the period (default: the last six calendar months to date; the interval defaults to days up to a month, weeks up to about a quarter, months beyond, and a period may hold at most 400 buckets). Each bucket has:
+
+- **notifications**: raised in the bucket, and of those the fulfilled, rejected, fulfilment rate and median hours to fulfil. Notifications are followed as a cohort by the day they were raised, as the notification report counts them, so a trend adds up to the report total for its period.
+- **requests**: district requests to national warehouses placed in the bucket, with requested, approved, issued and acknowledged pieces, as the warehouse request report counts them.
+- **deliveries**: district deliveries to hotspots recorded in the bucket, male and female pieces, and what hotspot managers have acknowledged of them.
+- **stock**: movements at the stores the user may see, in pieces: received from suppliers (receipts and opening balances), dispatched by warehouses, received by district stores, delivered to hotspots and net adjustments. Quantities in another unit than the product's catalogue unit are left out.
+
+It takes the warehouse request filters (`district_id`, `warehouse_store_id`, `store_id`, `store_type`, `category`) and `hot_spot_id`, with the same access rules as each report.
+
+## Hotspot coverage
+
+`GET /api/v1/reports/hotspots` counts hotspots by review status, with a dispenser, with a map position and waiting on an open stockout request, in total and by region and district; by venue type, sorted from the free-text type into the pick-point types of the Condom Distribution Guidelines 2022 (legacy records holding "new" or "old" are "Not recorded"); by dispenser condition (Working, Needs repair, Empty, Too few dispensers, Not installed, Not recorded); and the hotspots recorded in each of the last twelve months, by the day the record was created (records imported from the legacy system carry their import date). National users (`orders:all_stores` or `hotspots:all_districts`) see every hotspot, others the district they work in; an account with no district is refused (403). `region_id` and `district_id` narrow it.
 
 ## Response settings
 
@@ -104,7 +123,11 @@ National users (`orders:all_stores`) approve national versions and see every ver
 
 ## Screens
 
-The web app's **Programme reports** page (`/moh/programme-reports`, `/dcfp/programme-reports` and `/warehouse/programme-reports`) needs `reports:read`. It shows each report's cards and the export table, with filters kept in the address, a refresh button, CSV and Excel downloads, and approval and correction for holders of `reports:approve`. A failed load is shown as an error, never as zeros.
+The web app's **Reports and analytics** page (`/moh/programme-reports`, `/dcfp/programme-reports` and `/warehouse/programme-reports`, "Analytics" in the sidebar) needs `reports:read`. Each report has its own tab: Overview, Stockout requests, Warehouse orders, Stock & coverage, Expiry risk, Expiry exceptions, Hotspot coverage and HMIS 105 (the warehouse workspace shows its own store's), then Approved versions. A tab shows the report's headline figures and charts (in the manner of Power BI: every chart can switch to a table, open in focus mode and download its data as CSV or itself as a picture), then the export table. Filters (period presets or dates, interval, region, district, warehouse, store type, condom type, status, expiry band, month) sit in one bar above everything they scope, live in the address, and show as removable chips; district accounts are limited to their district by the server, so they are not offered a district filter. Downloads: a PDF of the page (headline figures, charts in the light theme, the records, definitions and the filters it covers), the server's CSV, and Excel. Holders of `reports:approve` approve and correct versions. A failed load is shown as an error, never as zeros.
+
+The MOH dashboard is built from the same reports (with a "Needs watching" list of overdue requests, unacknowledged deliveries, expiring and short stock and ledgers out of balance), and the DCFP and warehouse dashboards add a performance section with the same filters and PDF.
+
+Guideline thresholds shown on the charts come from the Condom Distribution Guidelines 2022: keep 2 to 3 months of stock, below 2 months is low stock (pp. 13, 19), and NMS notifies MOH six months before stock expires (p. 8). They are labels for the reader; nothing is enforced.
 
 ## Filters and dates
 
@@ -114,7 +137,7 @@ The notification and warehouse request reports accept `from` and `to` as calenda
 
 Access is checked on the server for every request (RN01). `orders:all_stores` sees every notification, request and store, for national users. Warehouse request and stock reports show other users their assigned store only. For notifications, others see the notifications of their assigned district store, of their assigned hotspot, the ones they sent, and with `orders:stockout_district` the district they work in. Filters only narrow what the user can already see, so another district's data is never returned, including by asking for its hotspot.
 
-Migration 24 grants `reports:read`, migration 27 `reports:configure` and migration 28 `reports:approve` to `admin` only. Grant it to MoH, district and community reporting roles through `PUT /api/v1/roles/{id}/permissions`, with `orders:all_stores` for national users.
+Migration 24 grants `reports:read`, migration 27 `reports:configure` and migration 28 `reports:approve` to `admin`; migration 38 grants `reports:read` to the DCFP role. Migration 39 makes `moh` the national, read-only overseer: it grants every read permission (`audit:read`, `hotspots:read`, `hotspots:read_district`, `hotspots:all_districts`, `inventory:read`, `orders:read`, `orders:all_stores`, `reports:read`, `roles:read`, `users:read`) and removes its one write permission, `catalogue:manage`; and it grants `reports:read` to `nms` and `jms`, which see their own store's reports. These are defaults an administrator can still change through `PUT /api/v1/roles/{id}/permissions`; the web app opens every workspace read-only for the `moh` role.
 
 ## Not covered yet
 

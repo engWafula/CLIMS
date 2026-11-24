@@ -290,7 +290,8 @@ func optionalIDs(c fiber.Ctx, first, second string) (*string, *string, error) {
 	return ids[0], ids[1], nil
 }
 
-// parsePeriod reads from and to as YYYY-MM-DD; both days are included.
+// parsePeriod reads from and to as YYYY-MM-DD Kampala calendar days, as reports do; both days are
+// included.
 func parsePeriod(c fiber.Ctx) (period, error) {
 	var p period
 	for _, bound := range []struct {
@@ -302,7 +303,7 @@ func parsePeriod(c fiber.Ctx) (period, error) {
 		if raw == "" {
 			continue
 		}
-		day, err := time.Parse(time.DateOnly, raw)
+		day, err := time.ParseInLocation(time.DateOnly, raw, stock.Kampala)
 		if err != nil {
 			return period{}, errors.New(bound.name + " must be a YYYY-MM-DD date")
 		}

@@ -5,6 +5,8 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/features/auth/queries';
+import { accessTo } from '@/navigation/access';
+import { useWebAccess } from '@/navigation/useAccess';
 
 import {
   AUDIT_AREAS,
@@ -70,7 +72,10 @@ export function auditHref(filters: Partial<AuditFilters> = {}): string {
   return query ? `${AUDIT_PATH}?${query}` : AUDIT_PATH;
 }
 
-/** A button to one record's audit history, shown only to people who may read the log. */
+/**
+ * A button to one record's audit history, shown only to people who may read the
+ * log and open the MOH workspace it lives in.
+ */
 export function AuditHistoryLink({
   subject,
   label = 'History',
@@ -79,7 +84,8 @@ export function AuditHistoryLink({
   label?: string;
 }) {
   const can = useCan();
-  if (!can('audit:read')) return null;
+  const access = useWebAccess();
+  if (!can('audit:read') || accessTo(access, 'moh') === null) return null;
   return (
     <Button variant="outline" size="sm" asChild>
       <Link href={auditHref({ subject })}>

@@ -78,6 +78,17 @@ export async function enablePush(): Promise<boolean> {
   }
 }
 
+/**
+ * Stop pushes reaching this phone by giving up its token: FCM then refuses it and the server drops the
+ * device. A sign-out without signal cannot end the session on the server, so without this the
+ * signed-out phone would keep showing that account's pushes. The next sign-in registers a new token.
+ */
+export function stopPush(): void {
+  notificationsModule()
+    ?.unregisterForNotificationsAsync()
+    .catch(() => {});
+}
+
 /** Remove this phone's shown notifications, so the next person to sign in doesn't see them. */
 export function clearShownNotifications(): void {
   notificationsModule()
