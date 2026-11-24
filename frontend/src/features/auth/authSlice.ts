@@ -4,6 +4,12 @@ import type { AuthUser, RefreshedTokens, Session } from './session';
 
 export interface AuthState {
   session: Session | null;
+  /**
+   * True when the last session ended because the user signed out. Sign-in then
+   * starts fresh instead of returning to the page they left, which belonged to
+   * them and may not be open to whoever signs in next.
+   */
+  signedOut?: boolean;
 }
 
 const initialState: AuthState = { session: null };
@@ -18,9 +24,12 @@ export const authSlice = createSlice({
   reducers: {
     sessionStarted(state, action: PayloadAction<Session>) {
       state.session = action.payload;
+      state.signedOut = false;
     },
-    sessionEnded(state) {
+    /** Pass `{ signedOut: true }` when the user chose to sign out (not an expiry). */
+    sessionEnded(state, action: PayloadAction<{ signedOut: boolean } | undefined>) {
       state.session = null;
+      state.signedOut = action.payload?.signedOut ?? false;
     },
     /** Swaps in renewed tokens; the user is unchanged. Ignored once signed out. */
     tokensRefreshed(state, action: PayloadAction<RefreshedTokens>) {
@@ -42,8 +51,10 @@ export const authSlice = createSlice({
     selectSession: (state) => state.session,
     selectCurrentUser: (state) => state.session?.user ?? null,
     selectToken: (state) => state.session?.token ?? null,
+    selectSignedOut: (state) => state.signedOut === true,
   },
 });
 
 export const { sessionStarted, sessionEnded, tokensRefreshed, userRefreshed } = authSlice.actions;
-export const { selectSession, selectCurrentUser, selectToken } = authSlice.selectors;
+export const { selectSession, selectCurrentUser, selectToken, selectSignedOut } =
+  authSlice.selectors;

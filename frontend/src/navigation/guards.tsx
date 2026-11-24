@@ -4,10 +4,14 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 
 import { PageLoader } from '@/components/states/PageLoader';
-import { useSession } from '@/features/auth/hooks';
+import { useSession, useSignedOut } from '@/features/auth/hooks';
 import { safeReturnPath } from '@/features/auth/returnPath';
 
+import { accessTo, type WebAccess } from './access';
+import { locate } from './navigation';
 import { HOME_PATH, SIGN_IN_PATH } from './paths';
+import { useWebAccess } from './useAccess';
+import { workspaces } from './workspaces';
 
 /** The query parameter that carries where a visitor was headed when the guard intercepted them. */
 const RETURN_PARAM = 'from';
@@ -45,18 +49,37 @@ interface GuardProps {
  */
 export function RequireAuth({ children }: GuardProps) {
   const session = useSession();
+  const signedOut = useSignedOut();
   const pathname = usePathname();
   const search = useSearchParams().toString();
 
-  if (!session) return <Redirect to={signInHref(search ? `${pathname}?${search}` : pathname)} />;
+  if (!session) {
+    // After choosing to sign out, the page they were on is not remembered: the next person to
+    // sign in in this browser may hold a different role, and it was not where they were headed.
+    if (signedOut) return <Redirect to={SIGN_IN_PATH} />;
+    return <Redirect to={signInHref(search ? `${pathname}?${search}` : pathname)} />;
+  }
   return children;
+}
+
+/**
+ * Whether `path` lies in a workspace `access` opens. The return path was recorded for whoever
+ * was signed in before, so it is only followed when it is part of the new user's work.
+ */
+export function canReturnTo(path: string, access: WebAccess): boolean {
+  const pathname = path.split(/[?#]/, 1)[0] ?? path;
+  return accessTo(access, locate(workspaces, pathname).workspace.id) !== null;
 }
 
 /** Sends an already signed-in user away from the sign-in page. */
 export function RedirectIfSignedIn({ children }: GuardProps) {
   const session = useSession();
+  const access = useWebAccess();
   const from = useSearchParams().get(RETURN_PARAM);
 
-  if (session) return <Redirect to={safeReturnPath(from, HOME_PATH, SIGN_IN_PATH)} />;
+  if (session) {
+    const target = safeReturnPath(from, HOME_PATH, SIGN_IN_PATH);
+    return <Redirect to={canReturnTo(target, access) ? target : HOME_PATH} />;
+  }
   return children;
 }

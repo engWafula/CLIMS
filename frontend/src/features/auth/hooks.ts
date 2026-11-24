@@ -5,11 +5,22 @@ import { useHttp } from '@/lib/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 
 import { signIn, signOut, type Credentials } from './api';
-import { selectCurrentUser, selectSession, sessionEnded, sessionStarted } from './authSlice';
+import {
+  selectCurrentUser,
+  selectSession,
+  selectSignedOut,
+  sessionEnded,
+  sessionStarted,
+} from './authSlice';
 
 /** The current session, or `null` when signed out. */
 export function useSession() {
   return useAppSelector(selectSession);
+}
+
+/** Whether the last session ended because the user signed out, rather than expiring. */
+export function useSignedOut() {
+  return useAppSelector(selectSignedOut);
 }
 
 /** The signed-in user, or `null` when signed out. */
@@ -45,7 +56,7 @@ export function useSignOut() {
   return useCallback(() => {
     // An unreachable server leaves the session to expire on its own.
     signOut(http).catch(() => undefined);
-    dispatch(sessionEnded());
+    dispatch(sessionEnded({ signedOut: true }));
     // Cached responses belong to the user who fetched them.
     queryClient.clear();
   }, [dispatch, queryClient, http]);

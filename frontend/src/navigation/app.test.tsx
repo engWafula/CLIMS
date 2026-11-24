@@ -7,9 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { sessionEnded } from '@/features/auth/authSlice';
 import { AppUnderTest, routedPaths } from '@/test/AppUnderTest';
 import { testRouter } from '@/test/navigation';
-import { renderApp } from '@/test/renderApp';
+import { renderApp, sessionWith } from '@/test/renderApp';
 
-import { signInHref } from './guards';
+import { webAccessFor } from './access';
+import { canReturnTo, signInHref } from './guards';
 import { allPaths } from './navigation';
 import { HOME_PATH, PUBLIC_PATHS } from './paths';
 import { workspaces } from './workspaces';
@@ -346,6 +347,10 @@ describe('signing out', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    // The page they left is not carried over to whoever signs in next.
+    await waitFor(() => {
+      expect(testRouter.location).toBe('/sign-in');
+    });
     expect(store.getState().auth.session).toBeNull();
     expect(storage.getItem('clims.session')).toBeNull();
     // The server session ends too, using the token from before sign-out.
@@ -369,5 +374,24 @@ describe('signing out', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(store.getState().auth.session).toBeNull();
+  });
+});
+
+describe('returning after sign-in', () => {
+  it("only returns to a remembered page in the new user's own workspace", () => {
+    const dcfp = webAccessFor(['dfcp']);
+    expect(canReturnTo('/dcfp/orders?page=2', dcfp)).toBe(true);
+    expect(canReturnTo('/moh/users', dcfp)).toBe(false);
+    expect(canReturnTo('/dcfp/orders', webAccessFor(['admin']))).toBe(true);
+  });
+
+  it('sends a user to their own home, not a page left by someone with another role', async () => {
+    renderApp(routes, {
+      route: '/sign-in?from=%2Fmoh%2Fusers',
+      session: sessionWith(['users:read'], ['dfcp']),
+    });
+    await waitFor(() => {
+      expect(testRouter.location).toMatch(/^\/dcfp/);
+    });
   });
 });
