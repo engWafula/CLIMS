@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-See the [2.3.0 release notes](releases/2.3.0.md) for the latest release, the [2.2.0 release notes](releases/2.2.0.md) for inventory and MoH SSO, the [2.1.0 release notes](releases/2.1.0.md) for orders and hotspot activation, and the [2.0.0 release notes](releases/2.0.0.md) for the platform revamp.
+See the [2.4.0 release notes](releases/2.4.0.md) for the latest release, the [2.3.0 release notes](releases/2.3.0.md) for identity sync and delivery agents, the [2.2.0 release notes](releases/2.2.0.md) for inventory and MoH SSO, the [2.1.0 release notes](releases/2.1.0.md) for orders and hotspot activation, and the [2.0.0 release notes](releases/2.0.0.md) for the platform revamp.
 
 `.github/workflows/images.yml` builds the four application production Dockerfiles on pull requests without publishing. Pushing a version tag runs the complete [CI workflow](ci.md), publishes images to GitHub Container Registry (GHCR), and creates a GitHub Release after all four application images succeed. Normal pushes to `main` run CI; they do not publish images.
 
@@ -25,7 +25,7 @@ The mobile image is an export job containing iOS and Android JavaScript bundles 
 
 ## Shared application version
 
-The root `VERSION` file is authoritative, currently `2.3.0`. Backend, frontend, and mobile use one application version. Package manifests and lockfiles (including root tooling), the backend default version, Expo release metadata, and OpenAPI `info.version` must agree. CI checks this on every pull request and main push; the release preflight also requires the Git tag to be exactly `v` plus `VERSION`.
+The root `VERSION` file is authoritative, currently `2.4.0`. Backend, frontend, and mobile use one application version. Package manifests and lockfiles (including root tooling), the backend default version, Expo release metadata, and OpenAPI `info.version` must agree. CI checks this on every pull request and main push; the release preflight also requires the Git tag to be exactly `v` plus `VERSION`.
 
 ```sh
 make version-set VERSION=2.2.0

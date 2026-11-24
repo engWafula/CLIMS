@@ -2,7 +2,7 @@
   "expo": {
     "name": "CLIMS",
     "slug": "clims-app",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lmd",
@@ -75,7 +75,7 @@
       "eas": {
         "projectId": "d680bffa-d623-48a1-b8b8-aea07cfc200c"
       },
-      "releaseVersion": "2.3.0"
+      "releaseVersion": "2.4.0"
     },
     "owner": "wafula3"
   }

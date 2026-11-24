@@ -35,7 +35,7 @@ import (
 
 // Version variables injected at build time via -ldflags
 var (
-	Version    = "2.3.0"
+	Version    = "2.4.0"
 	CommitHash = "none"
 	BuildTime  = "unknown"
 )

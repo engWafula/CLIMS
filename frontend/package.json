@@ -1,7 +1,7 @@
 {
   "name": "clims-frontend",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "CLIMS web client: last-mile condom distribution, stock and hotspot management.",
   "license": "MIT",
   "engines": {
