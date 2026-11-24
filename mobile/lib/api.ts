@@ -217,12 +217,6 @@ export async function login(identifier: string, password: string): Promise<Login
   return data.data;
 }
 
-/** GET /auth/me: the profile, with roles reloaded from the database. */
-export async function fetchMe(): Promise<ApiUser> {
-  const { data } = await api.get<{ data: ApiUser }>("/auth/me");
-  return data.data;
-}
-
 /**
  * POST /auth/logout for a session the app has already forgotten locally. Best effort: if the
  * access token has expired it refreshes first, and any failure is ignored.

@@ -11,7 +11,6 @@ import * as SecureStore from "expo-secure-store";
 import {
   configureAuth,
   endRemoteSession,
-  fetchMe,
   getTokens,
   login,
   setTokens,
@@ -138,16 +137,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
   }, [write, clearLocal]);
 
+  // The profile saved at sign-in is the one the app uses until the user signs out; it is not
+  // reloaded from the server. Profile changes made on the server reach the phone at the next
+  // sign-in. A revoked session still signs out via sessionEnded on the next API call.
   useEffect(() => {
     let live = true;
     (async () => {
-      let restored: Persisted | null = null;
       try {
         for (const k of OLD_KEYS) SecureStore.deleteItemAsync(k).catch(() => {});
         const raw = await SecureStore.getItemAsync(KEY);
         const s = raw ? (JSON.parse(raw) as Persisted) : null;
         if (s?.user && (s.user.demo || (s.tokens && s.tokens.refreshExp > Date.now()))) {
-          restored = s;
           setTokens(s.tokens);
           if (live) setUser(s.user);
         } else if (s) {
@@ -158,33 +158,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (live) setRestoring(false);
       }
-
-      // Reload the profile in the background so role and name changes reach the phone.
-      // Offline, the cached profile stays; a revoked session signs out via sessionEnded.
-      if (!restored || restored.user.demo) return;
-      try {
-        const me = await fetchMe();
-        // Bail if the user signed out (or in as someone else) while this was in flight.
-        if (!live || userRef.current?.id !== me.id) return;
-        const role = appRoleOf(me);
-        if (!role) {
-          const t = getTokens();
-          await clearLocal();
-          if (t) endRemoteSession(t);
-          return;
-        }
-        const u = toSessionUser(me, role);
-        setUser(u);
-        const t = getTokens();
-        if (t) await write({ user: u, tokens: t });
-      } catch {
-        // Offline or server error: keep working with the cached profile.
-      }
     })();
     return () => {
       live = false;
     };
-  }, [write, clearLocal]);
+  }, [write]);
 
   const persist = useCallback(
     async (u: SessionUser, t: StoredTokens | null) => {

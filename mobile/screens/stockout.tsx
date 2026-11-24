@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Screen from "@/components/m/Screen";
 import {
   Banner,
@@ -68,9 +68,28 @@ export function StockoutForm({
         return [...prev, ...items.filter((h) => !seen.has(h.id))];
       });
       setHasMore(page.hasMore);
+      return { received: page.items.length, hasMore: page.hasMore };
     },
     [me.name],
   );
+
+  // A search covers every hotspot, not only the pages shown so far: typing loads the remaining
+  // pages, one after another, until there are no more or the search is cleared.
+  const searching = useRef(false);
+  const searchAll = () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    (async () => {
+      let offset = hotspots.length;
+      for (;;) {
+        const page = await loadPage(offset);
+        offset += page.received;
+        if (!page.hasMore || !searching.current) break;
+      }
+    })()
+      .catch(() => setHasMore(false))
+      .finally(() => setLoadingMore(false));
+  };
 
   const loadMore = () => {
     if (!hasMore || loadingMore) return;
@@ -111,6 +130,7 @@ export function StockoutForm({
   const [comment, setComment] = useState("");
   const [pick, setPick] = useState(false);
   const [pq, setPq] = useState("");
+
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState("");
   const [done, setDone] = useState<"sent" | "repeated" | "queued" | null>(null);
@@ -263,16 +283,33 @@ export function StockoutForm({
               : "The hotspot manager confirms receipt when the rider arrives."
         }
       />
-      <Sheet visible={pick} title="Choose hotspot" onClose={() => setPick(false)}>
-        <Search value={pq} onChangeText={setPq} ph="Name, village or contact" />
+      <Sheet
+        visible={pick}
+        title="Choose hotspot"
+        onClose={() => {
+          searching.current = false;
+          setPick(false);
+        }}
+        header={
+          <Search
+            value={pq}
+            onChangeText={(v) => {
+              setPq(v);
+              searching.current = !!v.trim();
+              if (searching.current) searchAll();
+            }}
+            ph="Search name, village or contact"
+          />
+        }
+      >
         {loadingHotspots && !hotspots.length ? <SkeletonList rows={5} /> : null}
         <List
           empty={
             loadingHotspots && !hotspots.length
               ? undefined
               : hotspots.length
-                ? hasMore
-                  ? `No loaded hotspots match “${pq}”. Show more to search further.`
+                ? hasMore || loadingMore
+                  ? `Searching all hotspots for “${pq}”…`
                   : `No hotspots match “${pq}”.`
                 : "No active hotspots yet."
           }
@@ -289,6 +326,7 @@ export function StockoutForm({
                 onPress={() => {
                   setSel(h.id);
                   setRefused("");
+                  searching.current = false;
                   setPq("");
                   setPick(false);
                 }}

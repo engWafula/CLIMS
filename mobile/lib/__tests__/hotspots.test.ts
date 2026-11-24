@@ -3,6 +3,8 @@ import {
   normalizePhone,
   OTHER_TYPE,
   phoneOk,
+  PHONE_DIGITS,
+  toLocalPhone,
   submitErrorMessage,
   toLocalHotspot,
   toSubmission,
@@ -27,7 +29,7 @@ const filled: MapForm = {
   condition: "Good",
   comment: "",
   contactName: " Sarah Nakirya ",
-  contactPhone: "+256 (772) 123-456",
+  contactPhone: "0772 123-456",
 };
 
 describe("validateMapForm", () => {
@@ -81,11 +83,25 @@ describe("validateMapForm", () => {
 });
 
 describe("phone numbers", () => {
-  it("normalises the way the API does and checks 9 to 15 digits", () => {
+  it("normalises the way the API does", () => {
     expect(normalizePhone(" 0772 123-456 ")).toBe("0772123456");
-    expect(phoneOk("+256 772 123456")).toBe(true);
-    expect(phoneOk("0772 1234")).toBe(false);
-    expect(phoneOk("1234567890123456")).toBe(false);
+  });
+
+  it("accepts exactly a 10-digit Ugandan mobile written locally", () => {
+    expect(phoneOk("0708832767")).toBe(true);
+    expect(phoneOk("0772 123 456")).toBe(true);
+    expect(phoneOk("070883276")).toBe(false); // 9 digits
+    expect(phoneOk("07088327671")).toBe(false); // 11 digits
+    expect(phoneOk("0408832767")).toBe(false); // not 07
+    expect(phoneOk("+256708832767")).toBe(false); // the international form
+    expect(phoneOk("07088a2767")).toBe(false);
+  });
+
+  it("keeps digits only, at most 10, and turns +256 into 07", () => {
+    expect(toLocalPhone("0708 832-767")).toBe("0708832767");
+    expect(toLocalPhone("070883276712345")).toBe("0708832767");
+    expect(toLocalPhone("+256 708 832767")).toBe("0708832767");
+    expect(PHONE_DIGITS).toBe(10);
   });
 });
 
@@ -101,7 +117,7 @@ describe("toSubmission", () => {
       latitude: 0.0512,
       longitude: 32.4421,
       contact_person_name: "Sarah Nakirya",
-      contact_person_phone: "+256772123456",
+      contact_person_phone: "0772123456",
       has_condom_dispenser: true,
       dispenser_condition: "Good",
       comment: null,

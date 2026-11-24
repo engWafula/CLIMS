@@ -77,7 +77,7 @@ live("hotspot submission against a running backend", () => {
       condition: "Good",
       comment: "Submitted by the mobile live check",
       contactName: "Sarah Nakirya",
-      contactPhone: "+256 772 123 456",
+      contactPhone: "0772 123 456",
     };
     expect(validateMapForm(form)).toEqual({});
   });

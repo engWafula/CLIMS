@@ -39,9 +39,11 @@ import {
   listRegions,
   listSubcounties,
   OTHER_TYPE,
+  PHONE_DIGITS,
   submitErrorMessage,
   submitHotspot,
   toLocalHotspot,
+  toLocalPhone,
   toSubmission,
   validateMapForm,
   type MapField,
@@ -503,8 +505,12 @@ export function RequestForm({ hotspotId, fixed }: { hotspotId?: string; fixed?: 
         }
       />
       {!fixed ? (
-        <Sheet visible={pick} title="Choose hotspot" onClose={() => setPick(false)}>
-          <Search value={pq} onChangeText={setPq} ph="Name, village or contact" />
+        <Sheet
+          visible={pick}
+          title="Choose hotspot"
+          onClose={() => setPick(false)}
+          header={<Search value={pq} onChangeText={setPq} ph="Search name, village or contact" />}
+        >
           <List empty={`No hotspots match “${pq}”.`}>
             {active
               .filter((h) => matches(pq, h.name, h.id, h.village, h.subcounty, h.contact))
@@ -703,7 +709,7 @@ export function VhtMap() {
     setWho(w);
     setF((x) =>
       w === "me"
-        ? { ...x, contactName: me.name, contactPhone: me.phone }
+        ? { ...x, contactName: me.name, contactPhone: toLocalPhone(me.phone) }
         : { ...x, contactName: "", contactPhone: "" },
     );
   };
@@ -940,9 +946,10 @@ export function VhtMap() {
           <Input
             label="Phone number"
             value={f.contactPhone}
-            onChangeText={up("contactPhone")}
-            keyboardType="phone-pad"
-            ph="+256 7XX XXX XXX"
+            onChangeText={(v) => up("contactPhone")(toLocalPhone(v))}
+            keyboardType="number-pad"
+            max={PHONE_DIGITS}
+            ph="e.g. 0708832767"
             err={
               errOf("contactPhone") ||
               (f.contactPhone.trim() && errs.contactPhone ? errs.contactPhone : "")

@@ -74,7 +74,22 @@ export const LIMITS = { name: 100, type: 100, village: 100, contact: 100, commen
 
 /** The API strips spaces, dashes and parentheses, then wants 9 to 15 digits with an optional +. */
 export const normalizePhone = (p: string) => p.trim().replace(/[\s\-()]/g, "");
-export const phoneOk = (p: string) => /^\+?[0-9]{9,15}$/.test(normalizePhone(p));
+
+/** A contact phone has exactly this many digits: a Ugandan mobile written locally, 0708832767. */
+export const PHONE_DIGITS = 10;
+
+/** A Ugandan mobile number written locally: 10 digits starting 07, e.g. 0708832767. */
+export const phoneOk = (p: string) => /^07[0-9]{8}$/.test(normalizePhone(p));
+
+/**
+ * What the phone field keeps of what is typed or pasted: digits only, at most PHONE_DIGITS. An
+ * international +256 number (as accounts often store it) becomes the local 07… form.
+ */
+export function toLocalPhone(p: string): string {
+  let digits = p.replace(/[^0-9]/g, "");
+  if (digits.startsWith("256") && digits.length === 12) digits = `0${digits.slice(3)}`;
+  return digits.slice(0, PHONE_DIGITS);
+}
 
 /** What the map form collects. */
 export interface MapForm {
@@ -122,7 +137,8 @@ export function validateMapForm(f: MapForm): Partial<Record<MapField, string>> {
   else if (tooLong(f.contactName, LIMITS.contact))
     e.contactName = `Use at most ${LIMITS.contact} characters.`;
   if (!f.contactPhone.trim()) e.contactPhone = "Enter the hotspot manager's phone number.";
-  else if (!phoneOk(f.contactPhone)) e.contactPhone = "Enter 9 to 15 digits, e.g. +256 700 123456.";
+  else if (!phoneOk(f.contactPhone))
+    e.contactPhone = "Enter a 10-digit number starting with 07, e.g. 0708832767.";
   return e;
 }
 
